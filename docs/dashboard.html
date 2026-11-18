@@ -154,7 +154,7 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
 <tr><td>Speed</td><td>Moves per second: 1, 5, 15, 30, 60, 200, 1000, or <b>Max</b> (as many moves as fit between screen updates, a few hundred per second). The agent learns on every move, so a higher speed also trains faster.</td></tr>
 <tr><td>Vision rays</td><td>Shows or hides what the snake sees (<a href="#board">see Game board</a>).</td></tr>
 <tr><td>Learning</td><td><b>On</b>: training as described above. <b>Off</b>: just watch what it has learned. It always plays its biggest Q (no random moves), remembers nothing and does not train. These games are not counted as episodes or put on the chart.</td></tr>
-<tr><td>Save</td><td>Writes a checkpoint to <code>saves/checkpoint_ep&lt;N&gt;.npz</code>: settings, network weights, ε, counters and history.</td></tr>
+<tr><td>Save</td><td>Writes a checkpoint to <code>saves/checkpoint_&lt;vision|simple&gt;_ep&lt;N&gt;.npz</code>: settings, network weights, ε, counters and history.</td></tr>
 <tr><td>Load...</td><td>Opens a checkpoint, for example one written by headless mode, and continues from it. Its network shape comes with it (<a href="#apply">see Apply</a>).</td></tr>
 </table></div>
 </section>
@@ -284,12 +284,12 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
 <h3>Neural Network</h3>
 <div class="table-wrap"><table>
 <tr><th>Setting</th><th>Meaning</th></tr>
-<tr><td>Hidden layers</td><td>How many columns of hidden neurons, from 0 to 6. A row appears for each layer's size.</td></tr>
-<tr><td>Neurons in layer <i>n</i></td><td>How many neurons that hidden layer has.</td></tr>
-<tr><td>Hidden activation</td><td><b>ReLU</b>: negative → 0, positive passes through. <b>Tanh</b>: squashed to −1…1. <b>Sigmoid</b>: squashed to 0…1.</td></tr>
 <tr><td>State (inputs)</td><td><b>Vision</b> (the same inputs as SnakeGenetics) or <b>Simple (14 facts)</b>. <a href="#states">See Vision vs Simple</a>.</td></tr>
 <tr><td>Snake vision</td><td>Vision only: <b>8 directions</b> (with diagonals) or <b>4</b> (straight only).</td></tr>
 <tr><td>Apple/Self vision</td><td>Vision only: <b>Binary</b>, 1 if seen on the ray; or <b>1 / distance</b>, closer means bigger.</td></tr>
+<tr><td>Hidden layers</td><td>How many columns of hidden neurons, from 0 to 6. A row appears for each layer's size.</td></tr>
+<tr><td>Neurons in layer <i>n</i></td><td>How many neurons that hidden layer has.</td></tr>
+<tr><td>Hidden activation</td><td><b>ReLU</b>: negative → 0, positive passes through. <b>Tanh</b>: squashed to −1…1. <b>Sigmoid</b>: squashed to 0…1.</td></tr>
 <tr><td>Learning rate</td><td>How big a step the optimizer (Adam) takes per training step. Too big: Q-values jump around. Too small: slow learning.</td></tr>
 <tr><td>Loss</td><td>How the error is measured (<a href="#loss">see Loss</a>). <b>Mean squared error</b>: error². <b>Huber</b>: like error² for small errors, but grows only linearly for big ones, so a few surprising memories pull less hard.</td></tr>
 <tr><td>Architecture</td><td>The resulting layer sizes and number of weights, for information.</td></tr>
@@ -410,12 +410,12 @@ model.train_on_batch(states, targets)                 # 4. move predictions towa
 </div>
 <pre><code>python main.py --headless -e 300              # stop after 300 episodes
 python main.py --headless --games 1           # one game at a time, like the dashboard
-python main.py --load saves/checkpoint.npz    # continue in either mode
+python main.py --load saves/checkpoint_vision.npz    # continue in either mode
 python main.py --config my_settings.json      # use another settings file</code></pre>
 <div class="table-wrap"><table>
 <tr><th>File</th><th>What it holds</th></tr>
 <tr><td><code>settings.json</code></td><td>The settings last applied in the dashboard. Both modes start from it.</td></tr>
-<tr><td><code>saves/*.npz</code></td><td>Checkpoints: settings, network weights, ε, counters, history. Headless saves <code>saves/checkpoint.npz</code> every 50 episodes and when it stops. The replay memory is not saved; it refills quickly.</td></tr>
+<tr><td><code>saves/*.npz</code></td><td>Checkpoints: settings, network weights, ε, counters, history. Headless saves <code>saves/checkpoint_&lt;vision|simple&gt;.npz</code> every 50 episodes and when it stops. The replay memory is not saved; it refills quickly.</td></tr>
 </table></div>
 <p>A good workflow: train with <code>--headless</code>, then <b>Load...</b> the checkpoint in the dashboard, untick <b>Learning</b>, and watch the trained snake play.</p>
 <h3 id="parallel">Several games at once (headless)</h3>

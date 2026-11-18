@@ -15,7 +15,7 @@ python main.py                               # dashboard: watch it learn, move b
 python main.py --headless                    # no window: train as fast as possible, Ctrl+C to stop
 python main.py --headless -e 300             # ... stop after 300 episodes
 python main.py --headless --games 1          # ... one game at a time, like the dashboard (default: 8 at once)
-python main.py --load saves/checkpoint.npz   # continue from a checkpoint (either mode)
+python main.py --load saves/checkpoint_vision.npz   # continue from a checkpoint (either mode)
 ```
 
 | Key   | Action |

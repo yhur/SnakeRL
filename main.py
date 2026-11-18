@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--headless', action='store_true', help='train without a window')
     parser.add_argument('-e', '--episodes', type=int, default=0, help='headless: episodes to run (0 = until Ctrl+C)')
     parser.add_argument('--games', type=int, default=8, help='headless: games played at once (default: 8)')
-    parser.add_argument('--save', default='saves/checkpoint.npz', help='headless: checkpoint file')
+    parser.add_argument('--save', help='headless: checkpoint file (default: saves/checkpoint_<vision|simple>.npz)')
     parser.add_argument('--config', help='JSON settings file (default: settings.json, written by the dashboard)')
     parser.add_argument('--load', help='checkpoint to continue from')
     args = parser.parse_args()
@@ -44,7 +44,8 @@ def main():
         if args.games > 1:
             from RLAgent.parallel_trainer import ParallelTrainer
             trainer = ParallelTrainer.from_trainer(trainer, args.games)
-        headless.train(trainer, args.episodes, args.save)
+        save = args.save or f'saves/checkpoint_{trainer.cfg.state_type}.npz'
+        headless.train(trainer, args.episodes, save)
     else:
         from PyQt5.QtWidgets import QApplication
         from Dashboard.main_window import Dashboard

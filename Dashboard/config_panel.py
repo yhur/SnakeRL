@@ -7,8 +7,38 @@ from PyQt5.QtCore import pyqtSignal, Qt
 from RLAgent.config import Config
 
 
+class _FocusWheel:
+    """Mouse wheel changes the value only after the field is clicked; otherwise it scrolls the panel."""
+    def _init_focus(self):
+        self.setFocusPolicy(Qt.StrongFocus)    # the wheel alone never gives focus
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            super().wheelEvent(event)
+        else:
+            event.ignore()                     # passes the wheel on to the scroll area
+
+
+class SpinBox(_FocusWheel, QSpinBox):
+    def __init__(self, *a):
+        super().__init__(*a)
+        self._init_focus()
+
+
+class DoubleSpinBox(_FocusWheel, QDoubleSpinBox):
+    def __init__(self, *a):
+        super().__init__(*a)
+        self._init_focus()
+
+
+class ComboBox(_FocusWheel, QComboBox):
+    def __init__(self, *a):
+        super().__init__(*a)
+        self._init_focus()
+
+
 def _spin(lo, hi, val, step=1):
-    s = QSpinBox()
+    s = SpinBox()
     s.setRange(lo, hi)
     s.setSingleStep(step)
     s.setValue(val)
@@ -16,7 +46,7 @@ def _spin(lo, hi, val, step=1):
 
 
 def _dspin(lo, hi, val, step, decimals=3):
-    s = QDoubleSpinBox()
+    s = DoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
     s.setSingleStep(step)
@@ -25,7 +55,7 @@ def _dspin(lo, hi, val, step, decimals=3):
 
 
 def _combo(items, val):
-    c = QComboBox()
+    c = ComboBox()
     for label, data in items:
         c.addItem(label, data)
     c.setCurrentIndex(max(0, c.findData(val)))
@@ -46,6 +76,13 @@ class ConfigPanel(QScrollArea):
         # ---------------- Network ----------------
         nn = QGroupBox('Neural Network')
         fn = QFormLayout(nn)
+        self.state_type = _combo([('Vision', 'vision'), ('Simple (14 facts)', 'simple')],
+                                 cfg.state_type)
+        self.vision = _combo([('8 directions', 8), ('4 directions', 4)], cfg.vision_directions)
+        self.as_vision = _combo([('Binary', 'binary'), ('1 / distance', 'distance')], cfg.apple_self_vision)
+        fn.addRow('State (inputs)', self.state_type)
+        fn.addRow('Snake vision', self.vision)
+        fn.addRow('Apple/Self vision', self.as_vision)
         self.n_layers = _spin(0, 6, len(cfg.hidden_layers))
         self.n_layers.valueChanged.connect(self._rebuild_layer_spins)
         fn.addRow('Hidden layers', self.n_layers)
@@ -56,16 +93,9 @@ class ConfigPanel(QScrollArea):
         fn.addRow(self.layer_box)
         self.hidden_act = _combo([('ReLU', 'relu'), ('Tanh', 'tanh'), ('Sigmoid', 'sigmoid')],
                                  cfg.hidden_activation)
-        self.state_type = _combo([('Vision', 'vision'), ('Simple (14 facts)', 'simple')],
-                                 cfg.state_type)
-        self.vision = _combo([('8 directions', 8), ('4 directions', 4)], cfg.vision_directions)
-        self.as_vision = _combo([('Binary', 'binary'), ('1 / distance', 'distance')], cfg.apple_self_vision)
         self.lr = _dspin(0.00001, 0.1, cfg.learning_rate, 0.0005, 5)
         self.loss = _combo([('Mean squared error', 'mse'), ('Huber', 'huber')], cfg.loss)
         fn.addRow('Hidden activation', self.hidden_act)
-        fn.addRow('State (inputs)', self.state_type)
-        fn.addRow('Snake vision', self.vision)
-        fn.addRow('Apple/Self vision', self.as_vision)
         fn.addRow('Learning rate', self.lr)
         fn.addRow('Loss', self.loss)
         self.arch_label = QLabel()
@@ -156,7 +186,6 @@ class ConfigPanel(QScrollArea):
         for i in range(n):
             val = values[i] if i < len(values) else (values[-1] if values else 16)
             s = _spin(1, 256, val)
-            s.setFocusPolicy(Qt.ClickFocus)
             s.valueChanged.connect(self._refresh_labels)
             self.layer_form.addRow(f'  Neurons in layer {i + 1}', s)
             self.layer_spins.append(s)

@@ -24,7 +24,7 @@ from RLAgent import checkpoint
 from .nn_view import NetworkView
 from .board_view import BoardView
 from .chart_view import ChartView
-from .config_panel import ConfigPanel
+from .config_panel import ConfigPanel, ComboBox
 
 SAVE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'saves')
 SPEEDS = [('1 move/s', 1), ('5 moves/s', 5), ('15 moves/s', 15), ('30 moves/s', 30), ('60 moves/s', 60),
@@ -183,7 +183,7 @@ class Dashboard(QMainWindow):
         quit_.clicked.connect(self.close)
         save.clicked.connect(self.save)
         load.clicked.connect(self.load_dialog)
-        self.speed = QComboBox()
+        self.speed = ComboBox()
         for label, value in SPEEDS:
             self.speed.addItem(label, value)
         self.speed.setCurrentIndex(3)
@@ -291,7 +291,7 @@ class Dashboard(QMainWindow):
 
     def save(self):
         os.makedirs(SAVE_DIR, exist_ok=True)
-        path = os.path.join(SAVE_DIR, f'checkpoint_ep{self.trainer.episode}.npz')
+        path = os.path.join(SAVE_DIR, f'checkpoint_{self.trainer.cfg.state_type}_ep{self.trainer.episode}.npz')
         checkpoint.save(path, self.trainer)
         self.statusBar().showMessage(f'Saved {path}', 6000)
 
