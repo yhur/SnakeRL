@@ -1,0 +1,6 @@
+__pycache__/
+.venv/
+.DS_Store
+# training output and personal settings
+saves/
+settings.json
