@@ -1,0 +1,547 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SnakeRL Code Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Same look as SnakeGame/docs/snakegame-walkthrough.html: one reading column on grid paper. */
+:root {
+  --bg: #f6f7fa; --paper: #ffffff; --fg: #171a24; --muted: #5a6072; --rule: #dde0e8;
+  --grid: rgba(30, 50, 120, 0.05);
+  --accent: #1f4fe0; --accent-soft: #e7edff;
+  --apple: #c41a1a; --apple-soft: #fdeaea;
+  --ok: #1d7a46; --ok-soft: #e3f4ea;
+  --warn: #8a5a00; --warn-soft: #fbf1dc;
+  --code-bg: #eef0f5;
+  --font-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1118; --paper: #161a24; --fg: #e5e8f0; --muted: #9aa1b5; --rule: #2a3040;
+    --grid: rgba(120, 150, 255, 0.05);
+    --accent: #7d9bff; --accent-soft: #1c2546;
+    --apple: #ff6b6b; --apple-soft: #3a1c20;
+    --ok: #5fd08f; --ok-soft: #15301f;
+    --warn: #e8b453; --warn-soft: #33280f;
+    --code-bg: #1c2130;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1118; --paper: #161a24; --fg: #e5e8f0; --muted: #9aa1b5; --rule: #2a3040;
+  --grid: rgba(120, 150, 255, 0.05);
+  --accent: #7d9bff; --accent-soft: #1c2546;
+  --apple: #ff6b6b; --apple-soft: #3a1c20;
+  --ok: #5fd08f; --ok-soft: #15301f;
+  --warn: #e8b453; --warn-soft: #33280f;
+  --code-bg: #1c2130;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+}
+.page {
+  max-width: 920px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 48px 80px;
+  display: flex; flex-direction: column; gap: 56px;
+}
+.prose { max-width: 68ch; display: flex; flex-direction: column; gap: 12px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.9rem); letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 62ch; }
+a { color: var(--accent); }
+code, pre, kbd { font-family: var(--font-mono); }
+:not(pre) > code { font-size: 0.88em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+kbd { font-size: 0.82em; border: 1px solid var(--rule); border-bottom-width: 2px; padding: 0.05em 0.45em; border-radius: 4px; background: var(--paper); }
+.ref { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+.hint { font-size: 0.93rem; color: var(--muted); }
+
+pre.code { margin: 0; background: var(--code-bg); border-radius: 8px; padding: 14px 16px; font-size: 0.85rem; line-height: 1.55; overflow-x: auto; }
+.code .k { color: var(--accent); font-weight: 500; }
+.code .c { color: var(--muted); font-style: italic; }
+.code .s { color: var(--ok); }
+.code .n { color: var(--apple); }
+
+header.hero { display: flex; flex-direction: column; gap: 16px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); padding-top: 6px; }
+.facts b { color: var(--fg); font-weight: 500; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.9rem; }
+
+.files { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.file { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.file .name { font-family: var(--font-mono); font-weight: 500; font-size: 1rem; }
+.file .loc { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+.file p { font-size: 0.92rem; color: var(--muted); }
+.file ul { margin: 0; padding-left: 18px; font-size: 0.88rem; }
+
+.figure { background: var(--paper); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; overflow-x: auto; }
+.figure svg { display: block; min-width: 680px; width: 100%; height: auto; }
+.figure svg text { font-family: var(--font-mono); fill: var(--fg); }
+.figure svg .sub { fill: var(--muted); }
+.figure svg .box { fill: var(--paper); stroke: var(--rule); stroke-width: 1.5; }
+.figure svg .box-a { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.figure svg .box-r { fill: var(--apple-soft); stroke: var(--apple); stroke-width: 1.5; }
+.figure svg .box-g { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.figure svg .box-w { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.figure svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.figure svg .edge-a { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+.figure svg .arrow { fill: var(--muted); }
+.figure svg .arrow-a { fill: var(--accent); }
+.caption { font-size: 0.88rem; color: var(--muted); max-width: 68ch; }
+
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.split > * { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.tablewrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 0.8rem; padding: 0.1em 0.55em; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.apple { background: var(--apple-soft); color: var(--apple); }
+.pill.dead { background: var(--warn-soft); color: var(--warn); }
+.pill.blue { background: var(--accent-soft); color: var(--accent); }
+
+.calc { font-family: var(--font-mono); font-size: 0.85rem; background: var(--code-bg); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+
+/* one move, end to end */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+.steps li::before { content: counter(s); font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: 1.2rem; line-height: 1.3; }
+.steps .who { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+
+.notes { display: flex; flex-direction: column; gap: 12px; }
+.note { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 14px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; }
+.note .tag { font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 3px; }
+.note .tag.bug { color: var(--apple); }
+.note .tag.doc { color: var(--warn); }
+.note .tag.tidy { color: var(--muted); }
+.note .tag.know { color: var(--accent); }
+.note h3 { font-size: 1rem; margin-bottom: 4px; }
+.note p { font-size: 0.93rem; }
+
+@media (max-width: 760px) {
+  .files { grid-template-columns: minmax(0, 1fr); }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .note { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+</style>
+
+<div class="page">
+
+<header class="hero">
+  <span class="eyebrow">SnakeRL</span>
+  <h1>SnakeRL Code Walkthrough</h1>
+  <p class="lede">A Deep Q-Network learns to play the unmodified SnakeGame. One training loop serves two front ends: a PyQt5 dashboard that shows every move, and a headless mode that trains several games at once as fast as it can.</p>
+  <div class="facts">
+    <span><b>14</b> Python files</span>
+    <span><b>~1,640</b> lines</span>
+    <span>deps: <b>TensorFlow/Keras</b>, <b>PyQt5</b>, <b>NumPy</b></span>
+    <span>default network: <b>32 → 32 → 16 → 3</b></span>
+  </div>
+  <nav class="toc" aria-label="Contents">
+    <a href="#map">Map</a><a href="#start">Start-up</a><a href="#config">Config</a><a href="#env">Environment</a>
+    <a href="#agent">Agent</a><a href="#loop">Training loop</a><a href="#headless">Headless &amp; checkpoints</a>
+    <a href="#dashboard">Dashboard</a><a href="#onemove">One move</a><a href="#notes">Notes</a>
+  </nav>
+  <p class="hint">For what each part of the window shows, see <a href="dashboard.html">the Dashboard Guide</a>. For the game itself, see <a href="../SnakeGame/docs/snakegame-walkthrough.html">the SnakeGame walkthrough</a>.</p>
+</header>
+
+<section id="map">
+  <span class="eyebrow">Map</span>
+  <h2>Two packages around one loop</h2>
+  <div class="files">
+    <div class="file">
+      <span class="name">main.py</span><span class="loc">60 lines · entry point</span>
+      <p>Reads the command line and the settings, builds or loads a trainer, then starts headless or the dashboard.</p>
+    </div>
+    <div class="file">
+      <span class="name">RLAgent/</span><span class="loc">8 files · ~580 lines · no Qt</span>
+      <p>Everything about learning.</p>
+      <ul>
+        <li><code>config.py</code> settings</li>
+        <li><code>environment.py</code> state &amp; reward</li>
+        <li><code>dqn_agent.py</code> network, Q-learning</li>
+        <li><code>replay_memory.py</code></li>
+        <li><code>trainer.py</code>, <code>parallel_trainer.py</code></li>
+        <li><code>headless.py</code>, <code>checkpoint.py</code></li>
+      </ul>
+    </div>
+    <div class="file">
+      <span class="name">Dashboard/</span><span class="loc">5 files · ~850 lines · PyQt5</span>
+      <p>Only watches and steers. It never trains on its own; it calls the trainer.</p>
+      <ul>
+        <li><code>main_window.py</code> timer, keys, panels</li>
+        <li><code>board_view.py</code> game + rays + Q</li>
+        <li><code>nn_view.py</code> the network</li>
+        <li><code>chart_view.py</code> score chart</li>
+        <li><code>config_panel.py</code> settings form</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="figure" role="img" aria-label="Structure: main.py builds a Trainer, or a ParallelTrainer for headless. The trainer owns a SnakeEnv, which wraps the original SnakeGame Snake and Board, and a DQNAgent, which owns the Keras model, the target model and the replay memory. headless.py and the Dashboard both call trainer.step(). checkpoint.py saves and loads trainers.">
+    <svg viewBox="0 0 880 400">
+      <defs>
+        <marker id="tri" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="tri-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="arrow-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <!-- front ends -->
+      <rect class="box" x="20" y="20" width="200" height="62" rx="8"/>
+      <text x="36" y="46" font-size="15">main.py</text>
+      <text class="sub" x="36" y="68" font-size="12">args · settings · --load</text>
+      <rect class="box-w" x="20" y="130" width="200" height="62" rx="8"/>
+      <text x="36" y="156" font-size="15">headless.train</text>
+      <text class="sub" x="36" y="178" font-size="12">loop · print · save</text>
+      <rect class="box-w" x="20" y="230" width="200" height="62" rx="8"/>
+      <text x="36" y="256" font-size="15">Dashboard</text>
+      <text class="sub" x="36" y="278" font-size="12">QTimer → one_move</text>
+      <rect class="box" x="20" y="320" width="200" height="62" rx="8"/>
+      <text x="36" y="346" font-size="15">checkpoint</text>
+      <text class="sub" x="36" y="368" font-size="12">save / load .npz</text>
+      <!-- trainer -->
+      <rect class="box-a" x="300" y="160" width="230" height="80" rx="8"/>
+      <text x="316" y="188" font-size="15">Trainer</text>
+      <text class="sub" x="316" y="208" font-size="12">step() · record_game()</text>
+      <text class="sub" x="316" y="226" font-size="12">ParallelTrainer: 8 games</text>
+      <!-- env + agent -->
+      <rect class="box-g" x="610" y="40" width="250" height="80" rx="8"/>
+      <text x="626" y="68" font-size="15">SnakeEnv</text>
+      <text class="sub" x="626" y="88" font-size="12">get_state() · step(action)</text>
+      <text class="sub" x="626" y="106" font-size="12">wraps SnakeGame Snake, Board</text>
+      <rect class="box-r" x="610" y="200" width="250" height="100" rx="8"/>
+      <text x="626" y="228" font-size="15">DQNAgent</text>
+      <text class="sub" x="626" y="248" font-size="12">model · target_model</text>
+      <text class="sub" x="626" y="266" font-size="12">choose_action · learn</text>
+      <text class="sub" x="626" y="284" font-size="12">epsilon</text>
+      <rect class="box" x="610" y="325" width="250" height="56" rx="8"/>
+      <text x="626" y="350" font-size="15">ReplayMemory</text>
+      <text class="sub" x="626" y="370" font-size="12">100,000 moves, random batches</text>
+      <!-- edges -->
+      <path class="edge" d="M120,82 L120,128" marker-end="url(#tri)"/>
+      <path class="edge" d="M220,51 C300,51 330,100 360,158" marker-end="url(#tri)"/>
+      <text class="sub" x="270" y="90" font-size="11">builds</text>
+      <path class="edge-a" d="M220,161 C260,161 270,185 298,190" marker-end="url(#tri-a)"/>
+      <path class="edge-a" d="M220,261 C260,261 270,230 298,215" marker-end="url(#tri-a)"/>
+      <text class="sub" x="232" y="215" font-size="11">step()</text>
+      <path class="edge" d="M120,320 L120,294" stroke-dasharray="5 4"/>
+      <path class="edge" d="M220,351 C280,351 330,300 380,242" stroke-dasharray="5 4" marker-end="url(#tri)"/>
+      <text class="sub" x="262" y="318" font-size="11">reads / writes</text>
+      <path class="edge" d="M530,180 C570,180 570,80 608,80" marker-end="url(#tri)"/>
+      <path class="edge" d="M530,220 C570,220 570,250 608,250" marker-end="url(#tri)"/>
+      <path class="edge" d="M735,300 L735,323" marker-end="url(#tri)"/>
+    </svg>
+  </div>
+  <p class="caption">Blue arrows are the hot path, called on every move. <code>RLAgent</code> never imports Qt, so headless training runs without a window. The game in <code>SnakeGame/</code> is a git submodule and is used unchanged.</p>
+</section>
+
+<section id="start">
+  <span class="eyebrow">main.py</span>
+  <h2>Start-up: settings, then a trainer, then a front end</h2>
+  <div class="prose">
+    <p>Both modes start from the same settings: <code>settings.json</code>, which the dashboard writes whenever you press Apply or load a checkpoint. <code>--config</code> points at another file instead. Without either file, the defaults in <code>config.py</code> are used.</p>
+  </div>
+<pre class="code">settings = Config.load(args.config) <span class="k">if</span> args.config <span class="k">else</span> Config.load_last()
+<span class="k">if</span> args.load:
+    trainer = checkpoint.load(args.load, settings)   <span class="c"># network from the file, the rest from settings</span>
+<span class="k">else</span>:
+    trainer = Trainer(settings)
+
+<span class="k">if</span> args.headless:
+    <span class="k">if</span> args.games &gt; <span class="n">1</span>:                                <span class="c"># default 8</span>
+        trainer = ParallelTrainer.from_trainer(trainer, args.games)
+    headless.train(trainer, args.episodes, save)      <span class="c"># save: saves/checkpoint_&lt;vision|simple&gt;.npz</span>
+<span class="k">else</span>:
+    window = Dashboard(trainer); window.show(); app.exec_()</pre>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Option</th><th>Default</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>--headless</code></td><td>off</td><td>Train without a window.</td></tr>
+        <tr><td><code>-e</code>, <code>--episodes</code></td><td class="num">0</td><td>Headless: stop after this many episodes. 0 means until <kbd>Ctrl</kbd>+<kbd>C</kbd>.</td></tr>
+        <tr><td><code>--games</code></td><td class="num">8</td><td>Headless: games played at once. 1 plays exactly like the dashboard.</td></tr>
+        <tr><td><code>--save</code></td><td>by state</td><td>Headless: where the checkpoint goes.</td></tr>
+        <tr><td><code>--config</code></td><td><code>settings.json</code></td><td>Settings file to start from.</td></tr>
+        <tr><td><code>--load</code></td><td>none</td><td>Continue from a checkpoint, in either mode.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">TensorFlow is imported only after <code>TF_CPP_MIN_LOG_LEVEL</code> is set to hide its start-up messages, which is why the imports carry <code># noqa: E402</code>. PyQt5 is imported only for the dashboard.</p>
+</section>
+
+<section id="config">
+  <span class="eyebrow">RLAgent/config.py</span>
+  <h2>One dataclass holds every setting</h2>
+  <div class="prose">
+    <p><code>Config</code> is a plain dataclass with five groups. It converts to and from a dict, so the same object is written to <code>settings.json</code> and stored inside every checkpoint.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Group</th><th>Settings (default)</th></tr></thead>
+      <tbody>
+        <tr><td>Game</td><td><code>grid_x</code>, <code>grid_y</code> (20 × 20)</td></tr>
+        <tr><td>State <span class="pill blue">brain</span></td><td><code>state_type</code> (vision), <code>vision_directions</code> (8), <code>apple_self_vision</code> (binary)</td></tr>
+        <tr><td>Network</td><td><code>hidden_layers</code> ([32, 16]) <span class="pill blue">brain</span>, <code>hidden_activation</code> (relu) <span class="pill blue">brain</span>, <code>learning_rate</code> (0.001), <code>loss</code> (mse)</td></tr>
+        <tr><td>Q-learning</td><td><code>gamma</code> (0.9), <code>epsilon_start</code> (1.0), <code>epsilon_min</code> (0.01), <code>epsilon_decay</code> (0.97)</td></tr>
+        <tr><td>Replay</td><td><code>memory_size</code> (100,000), <code>batch_size</code> (64), <code>train_every</code> (1), <code>target_update</code> (500 moves)</td></tr>
+        <tr><td>Rewards</td><td><code>reward_apple</code> (+10), <code>reward_death</code> (−10), <code>reward_step</code> (0)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p><b>Brain settings</b> decide the shape of the network. Saved weights only fit the shape they were trained with, so when a checkpoint is loaded, <code>with_brain_of()</code> takes these five from the file and everything else from your current settings. The dashboard uses <code>same_brain_as()</code> to decide whether Apply can keep the trained agent.</p>
+  </div>
+<div class="calc">num_inputs  vision: rays × 3 + 4 + 4 = 8 × 3 + 8 = 32   (4 rays: 20)
+            simple: 14
+num_outputs 3                     Q(forward), Q(right), Q(left)
+layer_sizes [32, 32, 16, 3]       with the defaults</div>
+</section>
+
+<section id="env">
+  <span class="eyebrow">RLAgent/environment.py</span>
+  <h2>The environment: the game as numbers</h2>
+  <div class="prose">
+    <p><code>SnakeEnv</code> wraps the original <code>Snake</code> and <code>Board</code> and adds only two things RL needs: a <b>state</b> (a vector of numbers the network reads) and a <b>reward</b>. Actions 0, 1 and 2 map to the game's own one-hot moves: forward, turn right, turn left.</p>
+  </div>
+
+  <div class="split">
+    <div>
+      <h3>Vision state, 32 numbers</h3>
+      <p class="hint">From the head, walk along each of 8 rays until leaving the board. Each ray gives 3 numbers.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Per ray</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>wall</td><td><code>1 / distance</code>, bigger when close</td></tr>
+            <tr><td>apple</td><td>1 if the apple lies on the ray (or <code>1/d</code> with <code>distance</code>)</td></tr>
+            <tr><td>self</td><td>1 if its own body lies on the ray (or <code>1/d</code>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Then 4 one-hot numbers for the head's direction and 4 for the tail's. These are the same inputs SnakeGenetics uses. The apple is only seen when it sits exactly on one of the rays.</p>
+    </div>
+    <div>
+      <h3>Simple state, 14 yes/no facts</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Numbers</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0–2</td><td>wall forward / right / left, one cell away</td></tr>
+            <tr><td class="num">3–6</td><td>moving right / down / left / up</td></tr>
+            <tr><td class="num">7–9</td><td>own body forward / right / left, one cell away</td></tr>
+            <tr><td class="num">10–13</td><td>apple is left / right / up / down of the head</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Fewer inputs and always knows which way the apple is, but only sees danger one cell ahead.</p>
+    </div>
+  </div>
+
+  <h3>One move: <code>step(action)</code> <span class="ref">environment.py:161</span></h3>
+<pre class="code"><span class="k">self</span>.status = <span class="k">self</span>.snake.moveTo(ACTIONS[action])     <span class="c"># the original game decides what happened</span>
+<span class="k">if</span> status == <span class="s">'apple'</span>:  reward = reward_apple;  place a new apple   <span class="c"># or 'won' if the board is full</span>
+<span class="k">elif</span> status == <span class="s">'ok'</span>:   reward = reward_step
+<span class="k">else</span>:                   reward = reward_death; done = <span class="k">True</span>        <span class="c"># 'wall', 'body', 'starved'</span>
+<span class="k">return</span> <span class="k">self</span>.get_state(), reward, <span class="k">self</span>.done</pre>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Status</th><th>Reward</th><th>Game over?</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill ok">ok</span></td><td class="num"><code>reward_step</code> (0)</td><td>no</td></tr>
+        <tr><td><span class="pill apple">apple</span></td><td class="num"><code>reward_apple</code> (+10)</td><td>no</td></tr>
+        <tr><td><span class="pill dead">wall</span> <span class="pill dead">body</span> <span class="pill dead">starved</span></td><td class="num"><code>reward_death</code> (−10)</td><td>yes</td></tr>
+        <tr><td><span class="pill apple">won</span></td><td class="num"><code>reward_apple</code></td><td>yes: no free cell left</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">The environment also keeps <code>ray_hits</code> (what each ray saw) and has <code>describe_state()</code> and <code>state_labels()</code>; those exist only so the dashboard can draw and label the inputs.</p>
+</section>
+
+<section id="agent">
+  <span class="eyebrow">RLAgent/dqn_agent.py · replay_memory.py</span>
+  <h2>The agent: a Q-network and how it learns</h2>
+  <div class="prose">
+    <p><code>build_network()</code> makes a small Keras model: the state goes in, through the hidden <code>Dense</code> layers, and 3 Q-values come out. The output layer is linear because Q-values can be any number, negative too. It is compiled with Adam and the chosen loss.</p>
+    <p>The agent holds two copies of that network. <code>model</code> plays and learns. <code>target_model</code> is a frozen copy used only to compute targets, refreshed every <code>target_update</code> moves.</p>
+  </div>
+
+  <div class="split">
+    <div>
+      <h3>Acting: epsilon-greedy</h3>
+<pre class="code"><span class="k">if</span> explore <span class="k">and</span> random() &lt; epsilon:
+    <span class="k">return</span> random move        <span class="c"># explore</span>
+<span class="k">return</span> argmax(model(state))  <span class="c"># exploit</span></pre>
+      <p class="hint">After every finished game, <code>end_episode()</code> multiplies epsilon by 0.97, never going below 0.01. From 1.0 that takes about 151 games. <code>choose_actions()</code> does the same for 8 states with one network call.</p>
+    </div>
+    <div>
+      <h3>Remembering: replay memory</h3>
+      <p class="hint">Every move is stored as <code>(state, action, reward, next_state, done)</code> in a <code>deque</code> of 100,000; when full, the oldest drops out. Training samples a random batch from it, so consecutive, nearly identical moves don't dominate a training step.</p>
+    </div>
+  </div>
+
+  <h3>Learning: <code>learn()</code> and <code>train_on_batch()</code> <span class="ref">dqn_agent.py:87</span></h3>
+  <div class="prose"><p><code>learn()</code> runs after every move. It counts moves, trains once every <code>train_every</code> moves (once the memory holds a full batch), and refreshes the target network every <code>target_update</code> moves. One training step:</p></div>
+<pre class="code">targets = model.predict(states)                         <span class="c"># 1. current guesses for all 3 moves</span>
+next_q  = target_model.predict(next_states)             <span class="c"># 2. best future, from the frozen copy</span>
+future  = gamma * next_q.max(axis=<span class="n">1</span>) * (<span class="n">1</span> - dones)     <span class="c"># 3. Bellman: no future after game over</span>
+targets[rows, actions] = rewards + future              <span class="c">#    only the move actually made changes</span>
+loss = model.train_on_batch(states, targets)            <span class="c"># 4. nudge the network toward the targets</span></pre>
+<div class="calc">example: moved forward, reward 0, gamma 0.9, best Q of the next state 8.0
+         target = 0 + 0.9 × 8.0 = 7.2
+         if the network said Q(state, forward) = 5.0, training pulls it toward 7.2</div>
+  <p class="caption">The loss returned here is what training minimizes; the number printed in headless and drawn on the chart is its average over a game, for reporting only. <code>apply_settings()</code> lets the dashboard change the learning rate, memory size and epsilon range without rebuilding the network.</p>
+</section>
+
+<section id="loop">
+  <span class="eyebrow">RLAgent/trainer.py · parallel_trainer.py</span>
+  <h2>The training loop, one move at a time</h2>
+  <div class="prose"><p><code>Trainer.step()</code> is the whole loop body. Headless calls it in a <code>while</code> loop; the dashboard calls it from a timer. Neither front end knows how learning works.</p></div>
+<pre class="code"><span class="k">def</span> step(<span class="k">self</span>):
+    action, explored = agent.choose_action(state, explore=<span class="k">self</span>.learning)
+    next_state, reward, done = env.step(action)
+    <span class="k">if</span> <span class="k">self</span>.learning:
+        agent.remember(state, action, reward, next_state, done)
+        loss = agent.learn()
+    <span class="k">self</span>.last_move = dict(...)            <span class="c"># for the dashboard's "last move" panel</span>
+    <span class="k">self</span>.state = next_state
+    <span class="k">if</span> done: <span class="k">self</span>.finish_episode()        <span class="c"># record_game(), then a new game</span>
+    <span class="k">return</span> done</pre>
+  <div class="prose">
+    <p><code>record_game()</code> appends one entry to <code>history</code> (episode, score, steps, status, 50-game average, epsilon, total reward, average loss), updates the best score, and lowers epsilon. With <code>learning</code> off (the dashboard's watch mode) the agent plays its best moves only, and games are not counted.</p>
+  </div>
+  <div class="split">
+    <div>
+      <h3>Trainer</h3>
+      <p class="hint">One game. Each move: one network call to choose, one training step on a batch of 64. Used by the dashboard and by <code>--games 1</code>.</p>
+    </div>
+    <div>
+      <h3>ParallelTrainer</h3>
+      <p class="hint">8 games sharing one agent and one memory. Each round: one network call picks moves for all 8, all 8 move and are remembered, then one training step on 64 × 8 = 512 memories. Asking about 8 states costs about the same as asking about 1, so it runs several times faster.</p>
+    </div>
+  </div>
+</section>
+
+<section id="headless">
+  <span class="eyebrow">RLAgent/headless.py · checkpoint.py</span>
+  <h2>Headless training and checkpoints</h2>
+  <div class="prose">
+    <p><code>headless.train()</code> loops <code>trainer.step()</code>, prints one line per finished game, saves every 50 episodes, and saves once more on <kbd>Ctrl</kbd>+<kbd>C</kbd> or when <code>-e</code> episodes are done.</p>
+  </div>
+<pre class="code">episode 26737   score  48   best  65   avg(50)  35.08   epsilon 0.010   loss 0.617   1551 moves/s   (body)</pre>
+
+  <h3>What a checkpoint holds</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Key in the .npz</th><th>Content</th></tr></thead>
+      <tbody>
+        <tr><td><code>config</code></td><td>The settings, as JSON.</td></tr>
+        <tr><td><code>progress</code></td><td>Episode, best score, epsilon, move / training / target-update counters, the list of status names, as JSON.</td></tr>
+        <tr><td><code>weight_0</code> … <code>weight_n</code></td><td>The network's weights and biases.</td></tr>
+        <tr><td><code>history_episode</code>, <code>history_score</code>, …</td><td>The history, one compact array per field (about 20 bytes per episode). Status is stored as a small number; a missing loss as NaN. Older files with the history as JSON text still load.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">Not saved: the replay memory (up to 100,000 moves; it refills quickly) and the target network (on load it is set equal to the network). Epsilon is restored, so a loaded run continues exploring as little as it did when saved.</p>
+</section>
+
+<section id="dashboard">
+  <span class="eyebrow">Dashboard/</span>
+  <h2>The dashboard: a timer that calls the trainer</h2>
+  <div class="prose">
+    <p><code>Dashboard</code> starts a <code>QTimer</code> that fires about 60 times a second (every 16 ms). Each tick, <code>on_timer()</code> works out how many moves the speed setting is owed, calls <code>one_move()</code> that many times, then redraws once.</p>
+  </div>
+<pre class="code"><span class="k">if</span> speed == <span class="n">0</span>:                                 <span class="c"># Max</span>
+    <span class="k">while</span> time() - now &lt; <span class="n">0.012</span>: one_move()        <span class="c"># 12 ms of moves, then let the screen redraw</span>
+<span class="k">else</span>:
+    move_credit += speed * elapsed               <span class="c"># e.g. 15 moves/s × 0.016 s = 0.24 per tick</span>
+    <span class="k">while</span> move_credit &gt;= <span class="n">1</span>: move_credit -= <span class="n">1</span>; one_move()
+refresh()</pre>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>File</th><th>Draws</th><th>From</th></tr></thead>
+      <tbody>
+        <tr><td><code>board_view.py</code></td><td>The original <code>GameBoard</code>, plus the vision rays (or the 3 cells around the head for Simple), plus the 3 Q-values beside the head while paused.</td><td><code>env.ray_hits</code>, <code>agent.q_values()</code></td></tr>
+        <tr><td><code>nn_view.py</code></td><td>Every neuron and weight. Blue wire = positive, red = negative, thicker = stronger; brighter neuron = fired harder.</td><td><code>agent.brain(state)</code></td></tr>
+        <tr><td><code>chart_view.py</code></td><td>Score and 50-game average per episode, reduced to one point per pixel column, so 250,000 episodes still draw instantly.</td><td><code>trainer.history</code></td></tr>
+        <tr><td><code>config_panel.py</code></td><td>A form for every <code>Config</code> field, in group boxes. Apply emits a new <code>Config</code>.</td><td>—</td></tr>
+        <tr><td><code>main_window.py</code></td><td>Toolbar, stats panel, the last move and its Q-learning target, keys.</td><td><code>trainer</code>, <code>last_move</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="split">
+    <div>
+      <h3>Keys</h3>
+      <p class="hint"><kbd>Space</kbd> pauses; while paused it makes exactly one move and learns from it. <kbd>R</kbd> resumes. <kbd>Q</kbd> quits. An application-wide event filter catches them, so they work whichever widget has focus.</p>
+    </div>
+    <div>
+      <h3>Apply, Save, Load</h3>
+      <p class="hint">Apply with the same brain offers <b>Keep agent</b> (new settings, same network and memory) or <b>New agent</b>; a changed brain only allows New agent. Either way the settings go to <code>settings.json</code>. Save writes <code>saves/checkpoint_&lt;state&gt;_ep&lt;N&gt;.npz</code>. Load keeps your current settings except the brain.</p>
+    </div>
+  </div>
+</section>
+
+<section id="onemove">
+  <span class="eyebrow">End to end</span>
+  <h2>One move, through every layer</h2>
+  <ol class="steps">
+    <li><div><span class="who">Dashboard.on_timer / headless loop</span><p>Decides it is time for a move and calls <code>trainer.step()</code>.</p></div></li>
+    <li><div><span class="who">DQNAgent.choose_action</span><p>With probability epsilon a random move; otherwise the network reads the 32 state numbers and the move with the biggest Q-value wins.</p></div></li>
+    <li><div><span class="who">SnakeEnv.step → Snake.moveTo</span><p>The original game moves the snake and reports <code>ok</code>, <code>apple</code>, <code>wall</code>, <code>body</code> or <code>starved</code>. The environment turns that into a reward and computes the next state.</p></div></li>
+    <li><div><span class="who">ReplayMemory.add</span><p>The move is stored as <code>(state, action, reward, next_state, done)</code>.</p></div></li>
+    <li><div><span class="who">DQNAgent.learn → train_on_batch</span><p>64 random memories (512 in headless with 8 games) get Bellman targets from the target network, and the network takes one Adam step toward them. Every 500 moves the target network is refreshed.</p></div></li>
+    <li><div><span class="who">Trainer.finish_episode</span><p>If the move ended the game: record it in <code>history</code>, lower epsilon, start a new game.</p></div></li>
+    <li><div><span class="who">Dashboard.refresh / headless print</span><p>Show the result: the board, the network, the stats, or one printed line per finished game.</p></div></li>
+  </ol>
+</section>
+
+<section id="notes">
+  <span class="eyebrow">Notes</span>
+  <h2>Things to know before changing it</h2>
+  <div class="notes">
+    <div class="note">
+      <span class="tag know">Settings</span>
+      <div><h3>Headless uses the dashboard's last settings</h3>
+      <p>Both modes read <code>settings.json</code>. Changing a value in the dashboard and pressing Apply changes the next headless run too. With <code>--load</code>, the five brain settings come from the checkpoint and the rest still from <code>settings.json</code>, including <code>epsilon_min</code> and the rewards.</p></div>
+    </div>
+    <div class="note">
+      <span class="tag know">Batch</span>
+      <div><h3>Parallel games make bigger training steps</h3>
+      <p>With 8 games, each training step uses 512 memories instead of 64, at the same learning rate. The network learns from as many memories per move, but in fewer, larger steps. <code>target_update</code> counts moves, so with 8 games the target network refreshes about every 62 rounds.</p></div>
+    </div>
+    <div class="note">
+      <span class="tag know">Grid</span>
+      <div><h3>Keep the grid even</h3>
+      <p>The game starts the head at <code>grid / 2</code>. An odd grid puts the snake on half cells where it can never reach an apple. <code>config.py</code> notes this next to <code>grid_x</code>.</p></div>
+    </div>
+    <div class="note">
+      <span class="tag know">Loading</span>
+      <div><h3>A loaded run starts with an empty memory</h3>
+      <p>The replay memory is not in the checkpoint, so the first few hundred moves after <code>--load</code> train on a small, recent memory until it fills again.</p></div>
+    </div>
+    <div class="note">
+      <span class="tag tidy">Tidy-up</span>
+      <div><h3>Leftover rollback markers in the chart</h3>
+      <p><code>chart_view.py</code> still draws red dashed lines for history entries marked <code>rollback</code>, and its docstring mentions them. Nothing sets that mark any more, so the code is inert and can be removed.</p></div>
+    </div>
+  </div>
+</section>
+
+</div>
