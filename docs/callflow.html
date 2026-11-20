@@ -44,7 +44,8 @@
 html { scroll-behavior: smooth; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
+  word-break: keep-all; overflow-wrap: break-word;   /* keep CJK words whole */
 }
 main { max-width: 980px; margin: 0 auto; padding: 32px 16px 96px; }
 h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 6px; }
@@ -83,7 +84,7 @@ ul.flow ul > li:last-child::after { content: ""; position: absolute; left: -20px
 .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 3px 4px 3px 0; border-radius: 6px; }
 .row.active, summary.active { background: var(--src-hl); }
 .fn { font: 600 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 8px 1px 7px; border-radius: 5px; border-left: 3px solid var(--c, var(--muted)); background: var(--code-bg); white-space: nowrap; }
-.fn.step { font-weight: 500; border-left-color: transparent; background: none; padding-left: 0; font-family: inherit; font-size: 0.92rem; }
+.fn.step { white-space: normal; font-weight: 500; border-left-color: transparent; background: none; padding-left: 0; font-family: inherit; font-size: 0.92rem; }
 .fn .arrow { color: var(--muted); font-weight: 400; margin: 0 3px; }
 .why { color: var(--muted); font-size: 0.88rem; }
 .shared { font-size: 0.7rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--t-core); background: var(--shared-bg); padding: 1px 7px; border-radius: 99px; }
@@ -122,15 +123,26 @@ td code { white-space: nowrap; }
 .table-wrap { overflow-x: auto; }
 
 /* the source panel on the right */
-#srcpane { position: fixed; top: 0; right: 0; bottom: 0; width: min(48vw, 760px); background: var(--src-bg); border-left: 1px solid var(--line);
-  display: none; flex-direction: column; z-index: 10; box-shadow: -6px 0 24px rgba(0,0,0,.06); }
-body.pane-open #srcpane { display: flex; }
-body.pane-open main { margin-right: min(48vw, 760px); max-width: none; padding-left: 24px; padding-right: 24px; }
+#srcpane { position: fixed; top: 0; right: 0; bottom: 0; width: var(--pane-w, min(48vw, 760px)); background: var(--src-bg); border-left: 1px solid var(--line);
+  display: flex; flex-direction: column; z-index: 10; transform: translateX(100%); transition: transform .2s ease; }
+body.pane-open #srcpane { transform: none; box-shadow: -6px 0 24px rgba(0,0,0,.06); }
+body.pane-open main { margin-right: var(--pane-w, min(48vw, 760px)); max-width: none; padding-left: 24px; padding-right: 24px; }
+/* the border line: drag to resize, double-click to reset */
+#srcgrip { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 1; touch-action: none; }
+#srcgrip::after { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .15s; }
+#srcgrip:hover::after, body.resizing #srcgrip::after { background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing #srcpane { transition: none; }
+#srctab { z-index: 2; position: absolute; left: -24px; top: 50%; transform: translateY(-50%); width: 24px; height: 64px; padding: 0;
+  border: 1px solid var(--line); border-right: 0; border-radius: 10px 0 0 10px; background: var(--surface);
+  color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; box-shadow: -4px 0 10px rgba(0,0,0,.05); }
+#srctab:hover { color: var(--accent); border-color: var(--accent); }
+#srctab span { display: inline-block; transition: transform .2s; }
+body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open again */
 #srcpane header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
 #srcpane header b { font: 600 0.9rem ui-monospace, Menlo, monospace; }
 #srcpane header span { color: var(--muted); font-size: 0.84rem; }
 #srcpane header select { margin-left: auto; font: inherit; font-size: 0.84rem; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 46%; }
-#srcpane header button { font: inherit; font-size: 1.1rem; line-height: 1; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 #srccode { flex: 1; overflow: auto; margin: 0; padding: 8px 0 40vh; font: 0.8rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
 #srccode .ln { display: flex; padding-right: 14px; min-width: max-content; }
 #srccode .ln > i { flex: none; width: 3.6em; padding-right: 12px; text-align: right; color: var(--src-num); font-style: normal; user-select: none; }
@@ -141,8 +153,15 @@ body.pane-open main { margin-right: min(48vw, 760px); max-width: none; padding-l
 .sy-n { color: var(--sy-num); } .sy-d { color: var(--sy-def); font-weight: 600; }
 
 @media (max-width: 860px) {
-  #srcpane { top: auto; left: 0; width: auto; height: 55vh; border-left: 0; border-top: 1px solid var(--line); }
-  body.pane-open main { margin-right: auto; padding-bottom: 60vh; }
+  #srcpane { top: auto; left: 0; width: auto; height: var(--pane-h, 55vh); border-left: 0; border-top: 1px solid var(--line); transform: translateY(100%); }
+  #srctab { left: 50%; top: -24px; transform: translateX(-50%); width: 64px; height: 24px;
+    border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; box-shadow: 0 -4px 10px rgba(0,0,0,.05); }
+  #srctab span { transform: rotate(90deg); }
+  body:not(.pane-open) #srctab span { transform: rotate(-90deg); }
+  body.pane-open main { margin-right: auto; padding-bottom: calc(var(--pane-h, 55vh) + 5vh); }
+  #srcgrip { left: 0; right: 0; top: -5px; bottom: auto; width: auto; height: 10px; cursor: row-resize; }
+  #srcgrip::after { left: 0; right: 0; top: 4px; bottom: auto; width: auto; height: 2px; }
+  body.resizing { cursor: row-resize; }
 }
 </style>
 </head>
@@ -172,7 +191,7 @@ body.pane-open main { margin-right: min(48vw, 760px); max-width: none; padding-l
   <span><span class="shared">shared</span> used by every flow</span>
 </div>
 <p class="caption">On the right of each line, <b><code>file:line</code></b> opens the source where that step happens, and
-<b><code>def</code></b> opens the function itself, in a panel on the right (Esc closes it). Click a coloured block to fold it.
+<b><code>def</code></b> opens the function itself, in a panel on the right. The tab on its edge closes it and opens it again; Esc also closes it. Click a coloured block to fold it.
 Small helper calls are left out.</p>
 
 <h2 id="flow-a"><span class="num">1</span>Headless call flow</h2>
@@ -473,7 +492,9 @@ Small helper calls are left out.</p>
 </main>
 
 <aside id="srcpane" aria-label="Source code">
-  <header><b id="srcfile"></b><span id="srcline"></span><select id="srcpick" aria-label="Open another file"></select><button id="srcclose" title="Close (Esc)">×</button></header>
+  <div id="srcgrip" title="Drag to resize, double-click to reset"></div>
+  <button id="srctab" title="Open / close the source (Esc closes)"><span>›</span></button>
+  <header><b id="srcfile"></b><span id="srcline"></span><select id="srcpick" aria-label="Open another file"></select></header>
   <pre id="srccode"></pre>
 </aside>
 
@@ -601,8 +622,10 @@ Small helper calls are left out.</p>
     shown = file;
   }
 
+  var last = null;                   // what the panel showed last, for the tab to reopen
   function open(file, line, isDef) {
     if (!lines[file]) return;
+    last = { file: file, line: line, isDef: isDef };
     render(file);
     document.body.classList.add('pane-open');
     fileEl.textContent = file; pick.value = file;
@@ -650,7 +673,52 @@ Small helper calls are left out.</p>
     row.appendChild(box);
   });
 
-  document.getElementById('srcclose').addEventListener('click', close);
+  // drag the panel's border to resize it; the size is remembered (when the browser allows it)
+  var grip = document.getElementById('srcgrip'), rootStyle = document.documentElement.style;
+  var narrow = window.matchMedia('(max-width: 860px)');
+  try {
+    var saved = JSON.parse(localStorage.getItem('callflow-pane') || '{}');
+    if (saved.w) rootStyle.setProperty('--pane-w', saved.w);
+    if (saved.h) rootStyle.setProperty('--pane-h', saved.h);
+  } catch (e) {}
+  function saveSize() {
+    try {
+      localStorage.setItem('callflow-pane', JSON.stringify({ w: rootStyle.getPropertyValue('--pane-w'), h: rootStyle.getPropertyValue('--pane-h') }));
+    } catch (e) {}
+  }
+  grip.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+    document.body.classList.add('resizing');
+  });
+  grip.addEventListener('pointermove', function (e) {
+    if (!document.body.classList.contains('resizing')) return;
+    if (narrow.matches) {
+      var h = Math.max(120, Math.min(window.innerHeight - 80, window.innerHeight - e.clientY));
+      rootStyle.setProperty('--pane-h', h + 'px');
+    } else {
+      var w = Math.max(280, Math.min(window.innerWidth - 240, window.innerWidth - e.clientX));
+      rootStyle.setProperty('--pane-w', w + 'px');
+    }
+  });
+  function endResize() {
+    if (!document.body.classList.contains('resizing')) return;
+    document.body.classList.remove('resizing');
+    saveSize();
+  }
+  grip.addEventListener('pointerup', endResize);
+  grip.addEventListener('pointercancel', endResize);
+  grip.addEventListener('dblclick', function () {
+    rootStyle.removeProperty(narrow.matches ? '--pane-h' : '--pane-w');
+    saveSize();
+  });
+
+  // the tab on the panel's edge: closes it, or opens it again at the last place shown
+  document.getElementById('srctab').addEventListener('click', function () {
+    if (document.body.classList.contains('pane-open')) close();
+    else if (last) open(last.file, last.line, last.isDef);
+    else open(Object.keys(SOURCES)[0], 0, false);
+  });
   pick.addEventListener('change', function () { open(pick.value, 0, false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 
