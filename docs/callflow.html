@@ -13,6 +13,7 @@
   --cond-bg: #fbf6ea; --cond-line: #e6d29a;
   --event-bg: #f4f1fb; --event-line: #cdbff0;
   --shared-bg: #e3f5ec;
+  --q: #c2410c; --q-bg: #fdf0e7;
   --src-bg: #fdfcfa; --src-hl: #fff1b8; --src-blk: #fbf7e6; --src-num: #a8a59c;
   --sy-kw: #a3285e; --sy-str: #2f7a32; --sy-com: #8f8b80; --sy-num: #b0571b; --sy-def: #2463c7;
 }
@@ -25,6 +26,7 @@
     --cond-bg: #29251a; --cond-line: #6b5a26;
     --event-bg: #242033; --event-line: #4e4380;
     --shared-bg: #173326;
+    --q: #ff9a5c; --q-bg: #33231a;
     --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
     --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
   }
@@ -37,6 +39,7 @@
   --cond-bg: #29251a; --cond-line: #6b5a26;
   --event-bg: #242033; --event-line: #4e4380;
   --shared-bg: #173326;
+  --q: #ff9a5c; --q-bg: #33231a;
   --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
   --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
 }
@@ -82,12 +85,17 @@ ul.flow ul > li::before { content: ""; position: absolute; left: -18px; top: 15p
 ul.flow ul > li:last-child::after { content: ""; position: absolute; left: -20px; top: 16px; bottom: -6px; width: 4px; background: var(--surface); }
 
 .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 3px 4px 3px 0; border-radius: 6px; }
-.row.active, summary.active { background: var(--src-hl); }
+.row.active, summary.active, .row.q.active { background: var(--src-hl); }
 .fn { font: 600 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 8px 1px 7px; border-radius: 5px; border-left: 3px solid var(--c, var(--muted)); background: var(--code-bg); white-space: nowrap; }
 .fn.step { white-space: normal; font-weight: 500; border-left-color: transparent; background: none; padding-left: 0; font-family: inherit; font-size: 0.92rem; }
 .fn .arrow { color: var(--muted); font-weight: 400; margin: 0 3px; }
 .why { color: var(--muted); font-size: 0.88rem; }
 .shared { font-size: 0.7rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--t-core); background: var(--shared-bg); padding: 1px 7px; border-radius: 99px; }
+.qmark { font: 700 0.72rem/1.4 ui-monospace, Menlo, monospace; color: var(--surface); background: var(--q); padding: 0 7px; border-radius: 99px; }
+.row.q { background: var(--q-bg); box-shadow: inset 3px 0 0 var(--q); padding-left: 6px; }
+.qbox { border: 1px solid var(--q); border-radius: 10px; background: var(--surface); padding: 6px 16px 12px; margin: 12px 0; }
+.qbox h3 { font-size: 1rem; margin: 14px 0 6px; } .qbox .row { margin: 4px 0; }
+.qformula { font: 600 1rem/1.6 ui-monospace, Menlo, monospace; background: var(--q-bg); border-radius: 8px; padding: 8px 12px; margin: 8px 0; overflow-x: auto; white-space: nowrap; }
 .entry { --c: var(--t-entry); } .run { --c: var(--t-run); } .core { --c: var(--t-core); }
 .view { --c: var(--t-view); } .game { --c: var(--t-game); } .qt { --c: var(--t-qt); }
 
@@ -189,6 +197,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
   <span><span class="box" style="background:var(--cond-bg);border-color:var(--cond-line)"></span>only if…</span>
   <span><span class="box" style="background:var(--event-bg);border-color:var(--event-line)"></span>called by the framework when an event happens</span>
   <span><span class="shared">shared</span> used by every flow</span>
+  <span><span class="qmark">Q</span> where Q-values are computed (<a href="#q">see below</a>)</span>
 </div>
 <p class="caption">On the right of each line, <b><code>file:line</code></b> opens the source where that step happens, and
 <b><code>def</code></b> opens the function itself, in a panel on the right. The tab on its edge closes it and opens it again; Esc also closes it. Click a coloured block to fold it.
@@ -226,7 +235,7 @@ Small helper calls are left out.</p>
        <li><div class="row" data-at="T#self.env = SnakeEnv(cfg)" data-def="E#def __init__("><span class="fn core">SnakeEnv(cfg)</span><span class="arrow">→</span><span class="fn game">Board()</span>, <span class="fn game">Snake()</span></div></li>
        <li><div class="row" data-at="T#agent or DQNAgent(cfg)" data-def="A#def __init__("><span class="fn core">DQNAgent(cfg)</span></div>
         <ul>
-         <li><div class="row" data-at="A#self.model = build_network(cfg)" data-def="A#def build_network("><span class="fn core">build_network()</span> ×2<span class="why">model, and the frozen target_model</span></div></li>
+         <li><div class="row q" data-at="A#self.model = build_network(cfg)" data-def="A#def build_network("><span class="fn core">build_network()</span> ×2<span class="qmark">Q</span><span class="why">model, and the frozen target_model</span></div></li>
          <li><div class="row" data-at="A#self.memory = ReplayMemory(" data-def="R#def __init__("><span class="fn core">ReplayMemory(memory_size)</span></div></li>
         </ul>
        </li>
@@ -250,7 +259,7 @@ Small helper calls are left out.</p>
       <ul>
        <li><div class="row" data-at="H#trainer.step()" data-def="P#def step("><span class="fn run">trainer.step()</span><span class="why">ParallelTrainer: one move in every game</span></div>
         <ul>
-         <li><div class="row" data-at="P#self.agent.choose_actions(" data-def="A#def choose_actions("><span class="fn core">agent.choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">one network call for all 8; random with chance epsilon</span></div></li>
+         <li><div class="row q" data-at="P#self.agent.choose_actions(" data-def="A#def choose_actions("><span class="fn core">agent.choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="qmark">Q</span><span class="why">one network call for all 8; random with chance epsilon</span></div></li>
          <li>
           <details class="blk loop" open><summary data-at="P#for i, env in enumerate(self.envs)"><span class="tag l">loop</span>for each of the 8 games</summary>
           <ul>
@@ -275,12 +284,12 @@ Small helper calls are left out.</p>
            <li>
             <details class="blk cond" open><summary data-at="A#if trainings_due and len(self.memory)"><span class="tag c">if</span>training due and the memory holds a batch</summary>
             <ul>
-             <li><div class="row" data-at="A#loss = self.train_on_batch(" data-def="A#def train_on_batch("><span class="fn core">train_on_batch(*memory.sample(64 × 8))</span></div>
+             <li><div class="row q" data-at="A#loss = self.train_on_batch(" data-def="A#def train_on_batch("><span class="fn core">train_on_batch(*memory.sample(64 × 8))</span><span class="qmark">Q</span></div>
               <ul>
-               <li><div class="row" data-at="A#targets = self.model.predict_on_batch(states)"><span class="fn qt">model.predict_on_batch(states)</span><span class="why">current Q-values</span></div></li>
-               <li><div class="row" data-at="A#next_q = target_net.predict_on_batch"><span class="fn qt">target_model.predict_on_batch(next_states)</span></div></li>
-               <li><div class="row" data-at="A#future = self.cfg.gamma"><span class="fn step">target = reward + gamma × max Q(next), only for the move made</span></div></li>
-               <li><div class="row" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn qt">model.train_on_batch(states, targets)</span><span class="why">one Adam step; returns the loss</span></div></li>
+               <li><div class="row q" data-at="A#targets = self.model.predict_on_batch(states)"><span class="fn qt">model.predict_on_batch(states)</span><span class="qmark">Q</span><span class="why">current Q-values</span></div></li>
+               <li><div class="row q" data-at="A#next_q = target_net.predict_on_batch"><span class="fn qt">target_model.predict_on_batch(next_states)</span><span class="qmark">Q</span></div></li>
+               <li><div class="row q" data-at="A#future = self.cfg.gamma"><span class="fn step">target = reward + gamma × max Q(next), only for the move made</span><span class="qmark">Q</span></div></li>
+               <li><div class="row q" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn qt">model.train_on_batch(states, targets)</span><span class="qmark">Q</span><span class="why">one Adam step; returns the loss</span></div></li>
               </ul>
              </li>
             </ul>
@@ -288,7 +297,7 @@ Small helper calls are left out.</p>
            </li>
            <li>
             <details class="blk cond"><summary data-at="A#if cfg.target_update and"><span class="tag c">if</span>another 500 moves passed</summary>
-            <ul><li><div class="row" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn qt">target_model.set_weights(model.get_weights())</span></div></li></ul>
+            <ul><li><div class="row q" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn qt">target_model.set_weights(model.get_weights())</span><span class="qmark">Q</span></div></li></ul>
             </details>
            </li>
           </ul>
@@ -375,7 +384,7 @@ Small helper calls are left out.</p>
           <ul>
            <li><div class="row" data-at="W#game_over = self.trainer.step()" data-def="T#def step("><span class="fn run">trainer.step()</span><span class="why">Trainer: one move in one game</span></div>
             <ul>
-             <li><div class="row" data-at="T#self.agent.choose_action(" data-def="A#def choose_action("><span class="fn core">agent.choose_action(state)</span><span class="arrow">→</span><span class="fn core">q_values()</span><span class="why">random with chance epsilon</span></div></li>
+             <li><div class="row q" data-at="T#self.agent.choose_action(" data-def="A#def choose_action("><span class="fn core">agent.choose_action(state)</span><span class="arrow">→</span><span class="fn core">q_values()</span><span class="qmark">Q</span><span class="why">random with chance epsilon</span></div></li>
              <li><div class="row" data-at="T#self.env.step(action)" data-def="E#def step("><span class="fn core">env.step(action)</span><span class="arrow">→</span><span class="fn game">snake.moveTo()</span><span class="shared">shared</span></div></li>
              <li>
               <details class="blk cond" open><summary data-at="T#if self.learning:"><span class="tag c">if</span>learning <span class="why">off: just watch the best moves</span></summary>
@@ -406,8 +415,8 @@ Small helper calls are left out.</p>
        <li><div class="row" data-at="W#def on_timer(>>self.refresh()" data-def="W#def refresh("><span class="fn view">refresh()</span><span class="why">once per tick, however many moves</span></div>
         <ul>
          <li><div class="row" data-at="W#s['episode'].setText"><span class="fn step">stats: episode, moves, epsilon, memory, best, loss…</span></div></li>
-         <li><div class="row" data-at="W#q_values = agent.q_values(trainer.state)" data-def="A#def q_values("><span class="fn core">agent.q_values(state)</span><span class="why">the next move, and on the board while paused</span></div></li>
-         <li><div class="row" data-at="W#self.show_last_move()" data-def="W#def show_last_move("><span class="fn view">show_last_move()</span><span class="arrow">→</span><span class="fn core">agent.best_future_q()</span><span class="why">the Bellman target of that move</span></div></li>
+         <li><div class="row q" data-at="W#q_values = agent.q_values(trainer.state)" data-def="A#def q_values("><span class="fn core">agent.q_values(state)</span><span class="qmark">Q</span><span class="why">the next move, and on the board while paused</span></div></li>
+         <li><div class="row q" data-at="W#self.show_last_move()" data-def="W#def show_last_move("><span class="fn view">show_last_move()</span><span class="arrow">→</span><span class="fn core">agent.best_future_q()</span><span class="qmark">Q</span><span class="why">the Bellman target of that move</span></div></li>
          <li><div class="row" data-at="W#self.nn_view.show_brain(" data-def="A#def brain("><span class="fn view">nn_view.show_brain(agent.brain(state))</span><span class="why">weights and every layer's values</span></div></li>
          <li><div class="row" data-at="W#self.board.update()"><span class="fn qt">board.update()</span>, <span class="fn qt">nn_view.update()</span><span class="why">ask Qt to repaint</span></div></li>
         </ul>
@@ -472,7 +481,26 @@ Small helper calls are left out.</p>
 </div>
 <p class="caption">The views repaint once per timer tick, not once per move: at high speeds many moves happen between two pictures. While paused, <kbd>Space</kbd> goes through the same <code>one_move()</code>, so a single step also learns.</p>
 
-<h2 id="compare"><span class="num">3</span>Side by side</h2>
+<h2 id="q"><span class="num">3</span>Where the Q-values are computed</h2>
+<p>The network takes a state and returns three numbers, <code>[Q(forward), Q(right), Q(left)]</code>: how much reward it expects from each move. Q is computed for <b>two purposes</b>: a <b>prediction</b> to pick a move, and a <b>target</b> to learn toward. Rows marked <span class="qmark">Q</span> in the trees above are these places. All of them are in <code>RLAgent/dqn_agent.py</code>.</p>
+<div class="qbox">
+<h3>1 · Prediction: put a state through the network, get 3 Q-values</h3>
+<div class="row q" data-def="A#def build_network("><span class="fn core">build_network()</span><span class="why">state → hidden layers → 3 Q-values. The output layer has no activation, so Q can be negative</span></div>
+<div class="row q" data-at="A#return self.model.predict_on_batch(np.array([state]))[0]" data-def="A#def q_values("><span class="fn core">q_values(state)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">one state. The dashboard's <code>choose_action()</code> takes the argmax, and the views show it</span></div>
+<div class="row q" data-at="A#all_q = self.model.predict_on_batch" data-def="A#def choose_actions("><span class="fn core">choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">headless: Q for all 8 games in one call</span></div>
+<h3>2 · Target: the value Q should move toward when learning (Bellman equation)</h3>
+<div class="qformula">target = r + γ · max<sub>a′</sub> Q′(s′, a′)&nbsp;&nbsp;&nbsp;(target = r if the game ended)</div>
+<p class="caption"><code>r</code>: the move's reward, <code>γ</code>: <code>cfg.gamma</code>, <code>s′</code>: the state after the move, <code>Q′</code>: <code>target_model</code>, a copy refreshed every 500 moves. A target computed with the network that changes every step makes learning unstable, so an older copy is used.</p>
+<div class="row q" data-at="A#targets = self.model.predict_on_batch(states)" data-def="A#def train_on_batch("><span class="fn core">train_on_batch()</span><span class="why">① what the network predicts now, for every move</span></div>
+<div class="row q" data-at="A#next_q = target_net.predict_on_batch"><span class="fn step">② Q′ of the next state s′ (target_model)</span></div>
+<div class="row q" data-at="A#future = self.cfg.gamma"><span class="fn step">③ γ · max Q′(s′), 0 when the game ended (<code>1 - dones</code>)</span></div>
+<div class="row q" data-at="A#targets[rows, actions] = rewards + future"><span class="fn step">④ only the move actually made gets r + ③; the other two keep the prediction, so their error is 0</span></div>
+<div class="row q" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn step">⑤ one training step moving the predictions toward the targets (the gap is the loss)</span></div>
+<div class="row q" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn step">Q′ refresh: every 500 moves, copy the model's weights into target_model</span></div>
+<div class="row q" data-def="A#def best_future_q("><span class="fn core">best_future_q(next_state)</span><span class="why">the same max Q′(s′) for one move, shown in the dashboard's "last move" panel</span></div>
+</div>
+
+<h2 id="compare"><span class="num">4</span>Side by side</h2>
 <div class="table-wrap">
 <table>
 <thead><tr><th></th><th>Headless</th><th>Dashboard</th></tr></thead>

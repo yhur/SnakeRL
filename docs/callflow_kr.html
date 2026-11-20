@@ -13,6 +13,7 @@
   --cond-bg: #fbf6ea; --cond-line: #e6d29a;
   --event-bg: #f4f1fb; --event-line: #cdbff0;
   --shared-bg: #e3f5ec;
+  --q: #c2410c; --q-bg: #fdf0e7;
   --src-bg: #fdfcfa; --src-hl: #fff1b8; --src-blk: #fbf7e6; --src-num: #a8a59c;
   --sy-kw: #a3285e; --sy-str: #2f7a32; --sy-com: #8f8b80; --sy-num: #b0571b; --sy-def: #2463c7;
 }
@@ -25,6 +26,7 @@
     --cond-bg: #29251a; --cond-line: #6b5a26;
     --event-bg: #242033; --event-line: #4e4380;
     --shared-bg: #173326;
+    --q: #ff9a5c; --q-bg: #33231a;
     --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
     --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
   }
@@ -37,6 +39,7 @@
   --cond-bg: #29251a; --cond-line: #6b5a26;
   --event-bg: #242033; --event-line: #4e4380;
   --shared-bg: #173326;
+  --q: #ff9a5c; --q-bg: #33231a;
   --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
   --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
 }
@@ -82,12 +85,17 @@ ul.flow ul > li::before { content: ""; position: absolute; left: -18px; top: 15p
 ul.flow ul > li:last-child::after { content: ""; position: absolute; left: -20px; top: 16px; bottom: -6px; width: 4px; background: var(--surface); }
 
 .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 3px 4px 3px 0; border-radius: 6px; }
-.row.active, summary.active { background: var(--src-hl); }
+.row.active, summary.active, .row.q.active { background: var(--src-hl); }
 .fn { font: 600 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 8px 1px 7px; border-radius: 5px; border-left: 3px solid var(--c, var(--muted)); background: var(--code-bg); white-space: nowrap; }
 .fn.step { white-space: normal; font-weight: 500; border-left-color: transparent; background: none; padding-left: 0; font-family: inherit; font-size: 0.92rem; }
 .fn .arrow { color: var(--muted); font-weight: 400; margin: 0 3px; }
 .why { color: var(--muted); font-size: 0.88rem; }
 .shared { font-size: 0.7rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--t-core); background: var(--shared-bg); padding: 1px 7px; border-radius: 99px; }
+.qmark { font: 700 0.72rem/1.4 ui-monospace, Menlo, monospace; color: var(--surface); background: var(--q); padding: 0 7px; border-radius: 99px; }
+.row.q { background: var(--q-bg); box-shadow: inset 3px 0 0 var(--q); padding-left: 6px; }
+.qbox { border: 1px solid var(--q); border-radius: 10px; background: var(--surface); padding: 6px 16px 12px; margin: 12px 0; }
+.qbox h3 { font-size: 1rem; margin: 14px 0 6px; } .qbox .row { margin: 4px 0; }
+.qformula { font: 600 1rem/1.6 ui-monospace, Menlo, monospace; background: var(--q-bg); border-radius: 8px; padding: 8px 12px; margin: 8px 0; overflow-x: auto; white-space: nowrap; }
 .entry { --c: var(--t-entry); } .run { --c: var(--t-run); } .core { --c: var(--t-core); }
 .view { --c: var(--t-view); } .game { --c: var(--t-game); } .qt { --c: var(--t-qt); }
 
@@ -189,6 +197,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
   <span><span class="box" style="background:var(--cond-bg);border-color:var(--cond-line)"></span>조건일 때만…</span>
   <span><span class="box" style="background:var(--event-bg);border-color:var(--event-line)"></span>이벤트가 생기면 프레임워크가 호출</span>
   <span><span class="shared">공유</span> 모든 흐름이 사용</span>
+  <span><span class="qmark">Q</span> Q값을 계산하는 곳 (<a href="#q">아래 설명</a>)</span>
 </div>
 <p class="caption">각 줄 오른쪽의 <b><code>file:line</code></b>은 그 단계가 일어나는 소스 위치를, <b><code>def</code></b>는 함수 정의를
 오른쪽 패널에 엽니다. 패널 가장자리의 탭으로 닫았다 다시 열 수 있고, Esc로도 닫힙니다. 색칠된 블록을 클릭하면 접힙니다.
@@ -226,7 +235,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
        <li><div class="row" data-at="T#self.env = SnakeEnv(cfg)" data-def="E#def __init__("><span class="fn core">SnakeEnv(cfg)</span><span class="arrow">→</span><span class="fn game">Board()</span>, <span class="fn game">Snake()</span></div></li>
        <li><div class="row" data-at="T#agent or DQNAgent(cfg)" data-def="A#def __init__("><span class="fn core">DQNAgent(cfg)</span></div>
         <ul>
-         <li><div class="row" data-at="A#self.model = build_network(cfg)" data-def="A#def build_network("><span class="fn core">build_network()</span> ×2<span class="why">model, 그리고 고정된 target_model</span></div></li>
+         <li><div class="row q" data-at="A#self.model = build_network(cfg)" data-def="A#def build_network("><span class="fn core">build_network()</span> ×2<span class="qmark">Q</span><span class="why">model, 그리고 고정된 target_model</span></div></li>
          <li><div class="row" data-at="A#self.memory = ReplayMemory(" data-def="R#def __init__("><span class="fn core">ReplayMemory(memory_size)</span></div></li>
         </ul>
        </li>
@@ -250,7 +259,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
       <ul>
        <li><div class="row" data-at="H#trainer.step()" data-def="P#def step("><span class="fn run">trainer.step()</span><span class="why">ParallelTrainer: 모든 게임에서 한 수씩</span></div>
         <ul>
-         <li><div class="row" data-at="P#self.agent.choose_actions(" data-def="A#def choose_actions("><span class="fn core">agent.choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">8게임을 네트워크 호출 한 번으로; epsilon 확률로 무작위</span></div></li>
+         <li><div class="row q" data-at="P#self.agent.choose_actions(" data-def="A#def choose_actions("><span class="fn core">agent.choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="qmark">Q</span><span class="why">8게임을 네트워크 호출 한 번으로; epsilon 확률로 무작위</span></div></li>
          <li>
           <details class="blk loop" open><summary data-at="P#for i, env in enumerate(self.envs)"><span class="tag l">반복</span>8게임 각각</summary>
           <ul>
@@ -275,12 +284,12 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
            <li>
             <details class="blk cond" open><summary data-at="A#if trainings_due and len(self.memory)"><span class="tag c">조건</span>학습할 차례이고 메모리에 배치만큼 쌓였으면</summary>
             <ul>
-             <li><div class="row" data-at="A#loss = self.train_on_batch(" data-def="A#def train_on_batch("><span class="fn core">train_on_batch(*memory.sample(64 × 8))</span></div>
+             <li><div class="row q" data-at="A#loss = self.train_on_batch(" data-def="A#def train_on_batch("><span class="fn core">train_on_batch(*memory.sample(64 × 8))</span><span class="qmark">Q</span></div>
               <ul>
-               <li><div class="row" data-at="A#targets = self.model.predict_on_batch(states)"><span class="fn qt">model.predict_on_batch(states)</span><span class="why">현재 Q값</span></div></li>
-               <li><div class="row" data-at="A#next_q = target_net.predict_on_batch"><span class="fn qt">target_model.predict_on_batch(next_states)</span></div></li>
-               <li><div class="row" data-at="A#future = self.cfg.gamma"><span class="fn step">target = reward + gamma × max Q(next), 실제로 둔 수에만</span></div></li>
-               <li><div class="row" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn qt">model.train_on_batch(states, targets)</span><span class="why">Adam 한 스텝; loss 반환</span></div></li>
+               <li><div class="row q" data-at="A#targets = self.model.predict_on_batch(states)"><span class="fn qt">model.predict_on_batch(states)</span><span class="qmark">Q</span><span class="why">현재 Q값</span></div></li>
+               <li><div class="row q" data-at="A#next_q = target_net.predict_on_batch"><span class="fn qt">target_model.predict_on_batch(next_states)</span><span class="qmark">Q</span></div></li>
+               <li><div class="row q" data-at="A#future = self.cfg.gamma"><span class="fn step">target = reward + gamma × max Q(next), 실제로 둔 수에만</span><span class="qmark">Q</span></div></li>
+               <li><div class="row q" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn qt">model.train_on_batch(states, targets)</span><span class="qmark">Q</span><span class="why">Adam 한 스텝; loss 반환</span></div></li>
               </ul>
              </li>
             </ul>
@@ -288,7 +297,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
            </li>
            <li>
             <details class="blk cond"><summary data-at="A#if cfg.target_update and"><span class="tag c">조건</span>다시 500수가 지났으면</summary>
-            <ul><li><div class="row" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn qt">target_model.set_weights(model.get_weights())</span></div></li></ul>
+            <ul><li><div class="row q" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn qt">target_model.set_weights(model.get_weights())</span><span class="qmark">Q</span></div></li></ul>
             </details>
            </li>
           </ul>
@@ -375,7 +384,7 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
           <ul>
            <li><div class="row" data-at="W#game_over = self.trainer.step()" data-def="T#def step("><span class="fn run">trainer.step()</span><span class="why">Trainer: 게임 하나에서 한 수</span></div>
             <ul>
-             <li><div class="row" data-at="T#self.agent.choose_action(" data-def="A#def choose_action("><span class="fn core">agent.choose_action(state)</span><span class="arrow">→</span><span class="fn core">q_values()</span><span class="why">epsilon 확률로 무작위</span></div></li>
+             <li><div class="row q" data-at="T#self.agent.choose_action(" data-def="A#def choose_action("><span class="fn core">agent.choose_action(state)</span><span class="arrow">→</span><span class="fn core">q_values()</span><span class="qmark">Q</span><span class="why">epsilon 확률로 무작위</span></div></li>
              <li><div class="row" data-at="T#self.env.step(action)" data-def="E#def step("><span class="fn core">env.step(action)</span><span class="arrow">→</span><span class="fn game">snake.moveTo()</span><span class="shared">공유</span></div></li>
              <li>
               <details class="blk cond" open><summary data-at="T#if self.learning:"><span class="tag c">조건</span>학습 켜짐 <span class="why">꺼지면 최선의 수만 지켜봄</span></summary>
@@ -406,8 +415,8 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
        <li><div class="row" data-at="W#def on_timer(>>self.refresh()" data-def="W#def refresh("><span class="fn view">refresh()</span><span class="why">수가 몇 번이든 틱마다 한 번</span></div>
         <ul>
          <li><div class="row" data-at="W#s['episode'].setText"><span class="fn step">통계: episode, moves, epsilon, memory, best, loss…</span></div></li>
-         <li><div class="row" data-at="W#q_values = agent.q_values(trainer.state)" data-def="A#def q_values("><span class="fn core">agent.q_values(state)</span><span class="why">다음 수, 일시정지 중엔 보드에도 표시</span></div></li>
-         <li><div class="row" data-at="W#self.show_last_move()" data-def="W#def show_last_move("><span class="fn view">show_last_move()</span><span class="arrow">→</span><span class="fn core">agent.best_future_q()</span><span class="why">그 수의 Bellman target</span></div></li>
+         <li><div class="row q" data-at="W#q_values = agent.q_values(trainer.state)" data-def="A#def q_values("><span class="fn core">agent.q_values(state)</span><span class="qmark">Q</span><span class="why">다음 수, 일시정지 중엔 보드에도 표시</span></div></li>
+         <li><div class="row q" data-at="W#self.show_last_move()" data-def="W#def show_last_move("><span class="fn view">show_last_move()</span><span class="arrow">→</span><span class="fn core">agent.best_future_q()</span><span class="qmark">Q</span><span class="why">그 수의 Bellman target</span></div></li>
          <li><div class="row" data-at="W#self.nn_view.show_brain(" data-def="A#def brain("><span class="fn view">nn_view.show_brain(agent.brain(state))</span><span class="why">가중치와 모든 층의 값</span></div></li>
          <li><div class="row" data-at="W#self.board.update()"><span class="fn qt">board.update()</span>, <span class="fn qt">nn_view.update()</span><span class="why">Qt에 다시 그리기 요청</span></div></li>
         </ul>
@@ -472,7 +481,26 @@ body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open aga
 </div>
 <p class="caption">뷰는 수마다가 아니라 타이머 틱마다 한 번 다시 그립니다. 빠른 속도에서는 두 그림 사이에 많은 수가 진행됩니다. 일시정지 중 <kbd>Space</kbd>도 같은 <code>one_move()</code>를 거치므로 한 스텝씩 진행할 때도 학습합니다.</p>
 
-<h2 id="compare"><span class="num">3</span>나란히 비교</h2>
+<h2 id="q"><span class="num">3</span>Q값은 어디서 계산되나</h2>
+<p>네트워크는 상태(state)를 받아 숫자 세 개 <code>[Q(forward), Q(right), Q(left)]</code>를 내놓습니다. 각 수를 두면 앞으로 얼마의 보상을 받을지에 대한 예상입니다. Q는 <b>두 가지 용도</b>로 계산됩니다. 수를 고르기 위한 <b>예측</b>, 그리고 학습할 때 정답으로 쓰는 <b>목표(target)</b>입니다. 위 트리에서 <span class="qmark">Q</span> 표시가 붙은 줄이 이곳들입니다. 모두 <code>RLAgent/dqn_agent.py</code>에 있습니다.</p>
+<div class="qbox">
+<h3>1 · 예측: 네트워크에 상태를 넣어 Q값 3개를 얻음</h3>
+<div class="row q" data-def="A#def build_network("><span class="fn core">build_network()</span><span class="why">state → 은닉층 → Q값 3개. 출력층에 활성화 함수가 없어 Q는 음수도 됨</span></div>
+<div class="row q" data-at="A#return self.model.predict_on_batch(np.array([state]))[0]" data-def="A#def q_values("><span class="fn core">q_values(state)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">상태 하나. Dashboard의 <code>choose_action()</code>이 argmax로 수를 고르고, 화면 표시에도 씀</span></div>
+<div class="row q" data-at="A#all_q = self.model.predict_on_batch" data-def="A#def choose_actions("><span class="fn core">choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">Headless: 8게임의 Q를 호출 한 번에</span></div>
+<h3>2 · 목표: 학습할 때 Q가 다가가야 할 값 (Bellman 방정식)</h3>
+<div class="qformula">target = r + γ · max<sub>a′</sub> Q′(s′, a′)&nbsp;&nbsp;&nbsp;(게임이 끝났으면 target = r)</div>
+<p class="caption"><code>r</code>: 그 수의 보상, <code>γ</code>: <code>cfg.gamma</code>, <code>s′</code>: 수를 둔 뒤의 상태, <code>Q′</code>: 500수마다 복사해 두는 <code>target_model</code>. 매 스텝 바뀌는 네트워크로 목표를 계산하면 학습이 불안정해서 오래된 복사본을 씁니다.</p>
+<div class="row q" data-at="A#targets = self.model.predict_on_batch(states)" data-def="A#def train_on_batch("><span class="fn core">train_on_batch()</span><span class="why">① 지금 네트워크가 예측하는 모든 수의 Q</span></div>
+<div class="row q" data-at="A#next_q = target_net.predict_on_batch"><span class="fn step">② 다음 상태 s′의 Q′ (target_model)</span></div>
+<div class="row q" data-at="A#future = self.cfg.gamma"><span class="fn step">③ γ · max Q′(s′), 게임이 끝났으면 0 (<code>1 - dones</code>)</span></div>
+<div class="row q" data-at="A#targets[rows, actions] = rewards + future"><span class="fn step">④ 실제로 둔 수의 칸만 r + ③으로 바꿈; 나머지 두 수는 예측 그대로라 오차 0</span></div>
+<div class="row q" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn step">⑤ 예측을 목표 쪽으로 한 스텝 학습 (이 차이가 loss)</span></div>
+<div class="row q" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn step">Q′ 갱신: 500수마다 model의 가중치를 target_model로 복사</span></div>
+<div class="row q" data-def="A#def best_future_q("><span class="fn core">best_future_q(next_state)</span><span class="why">같은 max Q′(s′)를 수 하나에 대해 계산. Dashboard의 "last move" 패널 표시용</span></div>
+</div>
+
+<h2 id="compare"><span class="num">4</span>나란히 비교</h2>
 <div class="table-wrap">
 <table>
 <thead><tr><th></th><th>Headless</th><th>Dashboard</th></tr></thead>
