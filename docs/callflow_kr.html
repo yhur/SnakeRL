@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SnakeRL 호출 흐름</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --ink: #1d1d1b; --muted: #6a6862; --line: #dedad0;
+  --accent: #2463c7; --code-bg: #f3f1ec;
+  --t-entry: #7a4fd0; --t-run: #2463c7; --t-core: #12855a; --t-view: #c0700a; --t-game: #8a6d3b; --t-qt: #7d7a72;
+  --loop-bg: #f1f5fd; --loop-line: #b8cbef;
+  --cond-bg: #fbf6ea; --cond-line: #e6d29a;
+  --event-bg: #f4f1fb; --event-line: #cdbff0;
+  --shared-bg: #e3f5ec;
+  --src-bg: #fdfcfa; --src-hl: #fff1b8; --src-blk: #fbf7e6; --src-num: #a8a59c;
+  --sy-kw: #a3285e; --sy-str: #2f7a32; --sy-com: #8f8b80; --sy-num: #b0571b; --sy-def: #2463c7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --surface: #1f2125; --ink: #ecebe6; --muted: #a3a19a; --line: #3a3c42;
+    --accent: #7aa7ff; --code-bg: #26282d;
+    --t-entry: #b49aff; --t-run: #7aa7ff; --t-core: #4fd29a; --t-view: #ffb340; --t-game: #d6b47a; --t-qt: #a3a19a;
+    --loop-bg: #1c2432; --loop-line: #34507e;
+    --cond-bg: #29251a; --cond-line: #6b5a26;
+    --event-bg: #242033; --event-line: #4e4380;
+    --shared-bg: #173326;
+    --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
+    --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181b; --surface: #1f2125; --ink: #ecebe6; --muted: #a3a19a; --line: #3a3c42;
+  --accent: #7aa7ff; --code-bg: #26282d;
+  --t-entry: #b49aff; --t-run: #7aa7ff; --t-core: #4fd29a; --t-view: #ffb340; --t-game: #d6b47a; --t-qt: #a3a19a;
+  --loop-bg: #1c2432; --loop-line: #34507e;
+  --cond-bg: #29251a; --cond-line: #6b5a26;
+  --event-bg: #242033; --event-line: #4e4380;
+  --shared-bg: #173326;
+  --src-bg: #1b1c20; --src-hl: #4a4120; --src-blk: #26241c; --src-num: #6b6a64;
+  --sy-kw: #ff8ab8; --sy-str: #8fd18f; --sy-com: #7f7d76; --sy-num: #ffb27a; --sy-def: #8cb4ff;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
+  word-break: keep-all; overflow-wrap: break-word;   /* keep CJK words whole */
+}
+main { max-width: 980px; margin: 0 auto; padding: 32px 16px 96px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.4rem; margin: 52px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+h2 .num { color: var(--muted); font-weight: 500; margin-right: 6px; }
+p { max-width: 76ch; }
+.lead { color: var(--muted); font-size: 1.06rem; margin: 0 0 18px; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+/* overview cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 18px 0; }
+.card { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; color: inherit; text-decoration: none; }
+.card:hover { border-color: var(--accent); }
+.card b { display: block; font-size: 1.05rem; margin-bottom: 2px; }
+.card span { color: var(--muted); font-size: 0.92rem; }
+.card code { font-size: 0.82em; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.88rem; margin: 10px 0 0; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.legend .box { display: inline-block; width: 18px; height: 12px; border-radius: 3px; border: 1px solid; margin-right: 6px; vertical-align: -1px; }
+
+/* the flow tree */
+.flow-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 14px 18px 10px; margin: 14px 0 8px; overflow-x: auto; }
+.tools { display: flex; justify-content: flex-end; gap: 8px; margin: 10px 0 -6px; }
+.tools button { font: inherit; font-size: 0.84rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.tools button:hover { border-color: var(--accent); }
+ul.flow, ul.flow ul { list-style: none; margin: 0; padding: 0; }
+ul.flow { min-width: 640px; }
+ul.flow ul { margin-left: 13px; padding-left: 18px; border-left: 1.5px solid var(--line); }
+ul.flow li { position: relative; margin: 4px 0; }
+ul.flow ul > li::before { content: ""; position: absolute; left: -18px; top: 15px; width: 14px; border-top: 1.5px solid var(--line); }
+ul.flow ul > li:last-child::after { content: ""; position: absolute; left: -20px; top: 16px; bottom: -6px; width: 4px; background: var(--surface); }
+
+.row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 3px 4px 3px 0; border-radius: 6px; }
+.row.active, summary.active { background: var(--src-hl); }
+.fn { font: 600 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 8px 1px 7px; border-radius: 5px; border-left: 3px solid var(--c, var(--muted)); background: var(--code-bg); white-space: nowrap; }
+.fn.step { white-space: normal; font-weight: 500; border-left-color: transparent; background: none; padding-left: 0; font-family: inherit; font-size: 0.92rem; }
+.fn .arrow { color: var(--muted); font-weight: 400; margin: 0 3px; }
+.why { color: var(--muted); font-size: 0.88rem; }
+.shared { font-size: 0.7rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--t-core); background: var(--shared-bg); padding: 1px 7px; border-radius: 99px; }
+.entry { --c: var(--t-entry); } .run { --c: var(--t-run); } .core { --c: var(--t-core); }
+.view { --c: var(--t-view); } .game { --c: var(--t-game); } .qt { --c: var(--t-qt); }
+
+/* source links at the right end of each line */
+.src { margin-left: auto; display: inline-flex; gap: 4px; white-space: nowrap; padding-left: 8px; }
+.src a { font: 0.74rem/1.4 ui-monospace, Menlo, monospace; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; background: var(--surface); }
+.src a:hover, .src a.on { color: var(--accent); border-color: var(--accent); }
+.src a.def::before { content: "def "; font-weight: 700; }
+.src a.bad { color: #c33; border-style: dashed; }
+
+/* blocks: loop, condition, event */
+details.blk { border: 1px solid; border-radius: 8px; padding: 4px 10px 6px 8px; margin: 6px 0; }
+details.blk > summary { cursor: pointer; font-size: 0.86rem; font-weight: 650; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 2px 4px 2px 0; border-radius: 6px; }
+details.blk > summary::-webkit-details-marker { display: none; }
+details.blk > summary::before { content: "▸"; color: var(--muted); font-size: 0.8rem; width: 10px; transition: transform .15s; }
+details.blk[open] > summary::before { transform: rotate(90deg); }
+details.blk > summary .why { font-weight: 400; }
+details.blk > ul { margin-top: 4px; }
+details.loop { background: var(--loop-bg); border-color: var(--loop-line); --bg-blk: var(--loop-bg); }
+details.cond { background: var(--cond-bg); border-color: var(--cond-line); --bg-blk: var(--cond-bg); }
+details.event { background: var(--event-bg); border-color: var(--event-line); --bg-blk: var(--event-bg); }
+details.blk ul > li:last-child::after { background: var(--bg-blk); }
+.tag { font-size: 0.68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; color: var(--surface); }
+.loop .tag.l { background: var(--t-run); } .cond .tag.c { background: var(--t-game); } .event .tag.e { background: var(--t-entry); }
+
+.caption { color: var(--muted); font-size: 0.92rem; margin: 6px 0 0; max-width: 76ch; }
+
+/* comparison */
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 10px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 0.84rem; }
+td code { white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+
+/* the source panel on the right */
+#srcpane { position: fixed; top: 0; right: 0; bottom: 0; width: var(--pane-w, min(48vw, 760px)); background: var(--src-bg); border-left: 1px solid var(--line);
+  display: flex; flex-direction: column; z-index: 10; transform: translateX(100%); transition: transform .2s ease; }
+body.pane-open #srcpane { transform: none; box-shadow: -6px 0 24px rgba(0,0,0,.06); }
+body.pane-open main { margin-right: var(--pane-w, min(48vw, 760px)); max-width: none; padding-left: 24px; padding-right: 24px; }
+/* the border line: drag to resize, double-click to reset */
+#srcgrip { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 1; touch-action: none; }
+#srcgrip::after { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .15s; }
+#srcgrip:hover::after, body.resizing #srcgrip::after { background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing #srcpane { transition: none; }
+#srctab { z-index: 2; position: absolute; left: -24px; top: 50%; transform: translateY(-50%); width: 24px; height: 64px; padding: 0;
+  border: 1px solid var(--line); border-right: 0; border-radius: 10px 0 0 10px; background: var(--surface);
+  color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; box-shadow: -4px 0 10px rgba(0,0,0,.05); }
+#srctab:hover { color: var(--accent); border-color: var(--accent); }
+#srctab span { display: inline-block; transition: transform .2s; }
+body:not(.pane-open) #srctab span { transform: scaleX(-1); }   /* ‹ : open again */
+#srcpane header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+#srcpane header b { font: 600 0.9rem ui-monospace, Menlo, monospace; }
+#srcpane header span { color: var(--muted); font-size: 0.84rem; }
+#srcpane header select { margin-left: auto; font: inherit; font-size: 0.84rem; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 46%; }
+#srccode { flex: 1; overflow: auto; margin: 0; padding: 8px 0 40vh; font: 0.8rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+#srccode .ln { display: flex; padding-right: 14px; min-width: max-content; }
+#srccode .ln > i { flex: none; width: 3.6em; padding-right: 12px; text-align: right; color: var(--src-num); font-style: normal; user-select: none; }
+#srccode .ln > span { white-space: pre; }
+#srccode .ln.blk { background: var(--src-blk); }
+#srccode .ln.hl { background: var(--src-hl); box-shadow: inset 3px 0 var(--accent); }
+.sy-k { color: var(--sy-kw); font-weight: 600; } .sy-s { color: var(--sy-str); } .sy-c { color: var(--sy-com); font-style: italic; }
+.sy-n { color: var(--sy-num); } .sy-d { color: var(--sy-def); font-weight: 600; }
+
+@media (max-width: 860px) {
+  #srcpane { top: auto; left: 0; width: auto; height: var(--pane-h, 55vh); border-left: 0; border-top: 1px solid var(--line); transform: translateY(100%); }
+  #srctab { left: 50%; top: -24px; transform: translateX(-50%); width: 64px; height: 24px;
+    border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; box-shadow: 0 -4px 10px rgba(0,0,0,.05); }
+  #srctab span { transform: rotate(90deg); }
+  body:not(.pane-open) #srctab span { transform: rotate(-90deg); }
+  body.pane-open main { margin-right: auto; padding-bottom: calc(var(--pane-h, 55vh) + 5vh); }
+  #srcgrip { left: 0; right: 0; top: -5px; bottom: auto; width: auto; height: 10px; cursor: row-resize; }
+  #srcgrip::after { left: 0; right: 0; top: 4px; bottom: auto; width: auto; height: 2px; }
+  body.resizing { cursor: row-resize; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<h1>SnakeRL: 호출 흐름</h1>
+<p class="lead">두 흐름 모두 <code>main.py</code>에서 시작해 같은 <code>Trainer</code>(Snake 게임 하나, DQN 에이전트, 그 리플레이 메모리)를 만들고, 한 번에 한 수씩 진행시킵니다. Headless는 8게임을 동시에 단순 반복문으로 돌리고, 대시보드는 Qt 타이머에서 호출하며 매 수를 그립니다.</p>
+
+<div class="cards">
+  <a class="card" href="#flow-a"><b>1 · Headless</b><span><code>python main.py --headless</code><br>8게임을 동시에 최대한 빠르게 학습, 게임마다 한 줄 출력, 50 에피소드마다 저장</span></a>
+  <a class="card" href="#flow-b"><b>2 · Dashboard</b><span><code>python main.py</code><br>게임 하나를 16 ms Qt 타이머로 정한 속도에 맞춰 움직이고, 틱마다 그림</span></a>
+</div>
+
+<div class="legend">
+  <span><i style="background:var(--t-entry)"></i>진입점 (main.py)</span>
+  <span><i style="background:var(--t-run)"></i>트레이너와 headless 반복문</span>
+  <span><i style="background:var(--t-core)"></i>RL 핵심 (env, agent, memory, checkpoint)</span>
+  <span><i style="background:var(--t-view)"></i>대시보드 (PyQt5 뷰)</span>
+  <span><i style="background:var(--t-game)"></i>원래 SnakeGame</span>
+  <span><i style="background:var(--t-qt)"></i>Qt / Keras / NumPy</span>
+</div>
+<div class="legend">
+  <span><span class="box" style="background:var(--loop-bg);border-color:var(--loop-line)"></span>반복</span>
+  <span><span class="box" style="background:var(--cond-bg);border-color:var(--cond-line)"></span>조건일 때만…</span>
+  <span><span class="box" style="background:var(--event-bg);border-color:var(--event-line)"></span>이벤트가 생기면 프레임워크가 호출</span>
+  <span><span class="shared">공유</span> 모든 흐름이 사용</span>
+</div>
+<p class="caption">각 줄 오른쪽의 <b><code>file:line</code></b>은 그 단계가 일어나는 소스 위치를, <b><code>def</code></b>는 함수 정의를
+오른쪽 패널에 엽니다. 패널 가장자리의 탭으로 닫았다 다시 열 수 있고, Esc로도 닫힙니다. 색칠된 블록을 클릭하면 접힙니다.
+작은 보조 함수 호출은 생략했습니다.</p>
+
+<h2 id="flow-a"><span class="num">1</span>Headless 호출 흐름</h2>
+<p><code>main()</code>이 트레이너를 만들고 <code>ParallelTrainer</code>(기본 8게임)로 감싸 <code>headless.train()</code>에 넘깁니다. <code>headless.train()</code>은 에피소드 수에 도달하거나 <kbd>Ctrl</kbd>+<kbd>C</kbd>를 누를 때까지 <code>step()</code>을 반복합니다.</p>
+
+<div class="tools"><button data-fold="flow-a-tree" data-open="0">모두 접기</button><button data-fold="flow-a-tree" data-open="1">모두 펼치기</button></div>
+<div class="flow-wrap">
+<ul class="flow" id="flow-a-tree">
+ <li><div class="row" data-at="M#if __name__>>main()" data-def="M#def main("><span class="fn entry">main()</span><span class="why">옵션을 읽고 트레이너를 만듦</span></div>
+  <ul>
+   <li><div class="row" data-at="M#Config.load_last()" data-def="CF#def load_last("><span class="fn core">Config.load_last()</span><span class="shared">공유</span><span class="why">settings.json, 없으면 기본값</span></div></li>
+   <li>
+    <details class="blk cond" open><summary data-at="M#if args.load:"><span class="tag c">조건</span>--load <span class="why">체크포인트에서 이어서</span></summary>
+    <ul>
+     <li><div class="row" data-at="M#checkpoint.load(args.load" data-def="CK#def load("><span class="fn core">checkpoint.load()</span><span class="shared">공유</span></div>
+      <ul>
+       <li><div class="row" data-at="CK#settings.with_brain_of(saved)" data-def="CF#def with_brain_of("><span class="fn core">settings.with_brain_of(saved)</span><span class="why">네트워크 구조는 파일에서, 나머지는 settings에서</span></div></li>
+       <li><div class="row" data-at="CK#agent = DQNAgent(cfg)" data-def="A#def __init__("><span class="fn core">DQNAgent(cfg)</span><span class="arrow">→</span><span class="fn qt">set_weights()</span><span class="why">model과 target을 파일에서</span></div></li>
+       <li><div class="row" data-at="CK#agent.epsilon = progress"><span class="fn step">epsilon과 이동 / 학습 횟수 복원</span></div></li>
+       <li><div class="row" data-at="CK#trainer = Trainer(cfg, agent)" data-def="T#def __init__("><span class="fn run">Trainer(cfg, agent)</span></div></li>
+       <li><div class="row" data-at="CK#trainer.history = arrays_to_history" data-def="CK#def arrays_to_history("><span class="fn core">arrays_to_history()</span><span class="why">history 열들을 다시 dict 목록으로</span></div></li>
+      </ul>
+     </li>
+    </ul>
+    </details>
+   </li>
+   <li>
+    <details class="blk cond" open><summary data-at="M#trainer = Trainer(settings)"><span class="tag c">그 외</span>학습되지 않은 새 에이전트</summary>
+    <ul>
+     <li><div class="row" data-at="M#trainer = Trainer(settings)" data-def="T#def __init__("><span class="fn run">Trainer(settings)</span><span class="shared">공유</span></div>
+      <ul>
+       <li><div class="row" data-at="T#self.env = SnakeEnv(cfg)" data-def="E#def __init__("><span class="fn core">SnakeEnv(cfg)</span><span class="arrow">→</span><span class="fn game">Board()</span>, <span class="fn game">Snake()</span></div></li>
+       <li><div class="row" data-at="T#agent or DQNAgent(cfg)" data-def="A#def __init__("><span class="fn core">DQNAgent(cfg)</span></div>
+        <ul>
+         <li><div class="row" data-at="A#self.model = build_network(cfg)" data-def="A#def build_network("><span class="fn core">build_network()</span> ×2<span class="why">model, 그리고 고정된 target_model</span></div></li>
+         <li><div class="row" data-at="A#self.memory = ReplayMemory(" data-def="R#def __init__("><span class="fn core">ReplayMemory(memory_size)</span></div></li>
+        </ul>
+       </li>
+       <li><div class="row" data-at="T#self.start_episode()" data-def="T#def start_episode("><span class="fn run">start_episode()</span><span class="arrow">→</span><span class="fn core">env.reset()</span></div></li>
+      </ul>
+     </li>
+    </ul>
+    </details>
+   </li>
+   <li>
+    <details class="blk cond" open><summary data-at="M#if args.games > 1:"><span class="tag c">조건</span>--games &gt; 1 <span class="why">기본 8</span></summary>
+    <ul>
+     <li><div class="row" data-at="M#ParallelTrainer.from_trainer(" data-def="P#def from_trainer("><span class="fn run">ParallelTrainer.from_trainer()</span><span class="why">같은 agent와 history, SnakeEnv 게임 8개</span></div></li>
+    </ul>
+    </details>
+   </li>
+   <li><div class="row" data-at="M#headless.train(" data-def="H#def train("><span class="fn run">headless.train(trainer, episodes, save)</span></div>
+    <ul>
+     <li>
+      <details class="blk loop" open><summary data-at="H#while last_episode is None"><span class="tag l">반복</span>라운드마다 <span class="why">-e 에피소드까지, 또는 Ctrl+C</span></summary>
+      <ul>
+       <li><div class="row" data-at="H#trainer.step()" data-def="P#def step("><span class="fn run">trainer.step()</span><span class="why">ParallelTrainer: 모든 게임에서 한 수씩</span></div>
+        <ul>
+         <li><div class="row" data-at="P#self.agent.choose_actions(" data-def="A#def choose_actions("><span class="fn core">agent.choose_actions(states)</span><span class="arrow">→</span><span class="fn qt">model.predict_on_batch()</span><span class="why">8게임을 네트워크 호출 한 번으로; epsilon 확률로 무작위</span></div></li>
+         <li>
+          <details class="blk loop" open><summary data-at="P#for i, env in enumerate(self.envs)"><span class="tag l">반복</span>8게임 각각</summary>
+          <ul>
+           <li><div class="row" data-at="P#env.step(actions[i])" data-def="E#def step("><span class="fn core">env.step(action)</span><span class="shared">공유</span></div>
+            <ul>
+             <li><div class="row" data-at="E#self.snake.moveTo(" data-def="S#def moveTo("><span class="fn game">snake.moveTo(ACTIONS[action])</span><span class="why">'ok', 'apple', 'wall', 'body', 'starved' 중 하나</span></div></li>
+             <li>
+              <details class="blk cond"><summary data-at="E#if self.status == 'apple':"><span class="tag c">조건</span>사과 <span class="why">reward_apple</span></summary>
+              <ul><li><div class="row" data-at="E#self.board.generate_apple(" data-def="B#def generate_apple("><span class="fn game">board.generate_apple()</span></div></li></ul>
+              </details>
+             </li>
+             <li><div class="row" data-at="E#reward = self.cfg.reward_death"><span class="fn step">wall / body / starved: reward_death, 게임 종료</span></div></li>
+             <li><div class="row" data-at="E#return self.get_state(), reward" data-def="E#def get_state("><span class="fn core">get_state()</span><span class="arrow">→</span><span class="fn core">vision_state()</span> 또는 <span class="fn core">simple_state()</span></div></li>
+            </ul>
+           </li>
+           <li><div class="row" data-at="P#self.agent.remember(" data-def="A#def remember("><span class="fn core">agent.remember()</span><span class="arrow">→</span><span class="fn core">memory.add()</span><span class="shared">공유</span></div></li>
+          </ul>
+          </details>
+         </li>
+         <li><div class="row" data-at="P#self.agent.learn(moves=" data-def="A#def learn("><span class="fn core">agent.learn(moves=8)</span><span class="shared">공유</span></div>
+          <ul>
+           <li>
+            <details class="blk cond" open><summary data-at="A#if trainings_due and len(self.memory)"><span class="tag c">조건</span>학습할 차례이고 메모리에 배치만큼 쌓였으면</summary>
+            <ul>
+             <li><div class="row" data-at="A#loss = self.train_on_batch(" data-def="A#def train_on_batch("><span class="fn core">train_on_batch(*memory.sample(64 × 8))</span></div>
+              <ul>
+               <li><div class="row" data-at="A#targets = self.model.predict_on_batch(states)"><span class="fn qt">model.predict_on_batch(states)</span><span class="why">현재 Q값</span></div></li>
+               <li><div class="row" data-at="A#next_q = target_net.predict_on_batch"><span class="fn qt">target_model.predict_on_batch(next_states)</span></div></li>
+               <li><div class="row" data-at="A#future = self.cfg.gamma"><span class="fn step">target = reward + gamma × max Q(next), 실제로 둔 수에만</span></div></li>
+               <li><div class="row" data-at="A#self.model.train_on_batch(states, targets)"><span class="fn qt">model.train_on_batch(states, targets)</span><span class="why">Adam 한 스텝; loss 반환</span></div></li>
+              </ul>
+             </li>
+            </ul>
+            </details>
+           </li>
+           <li>
+            <details class="blk cond"><summary data-at="A#if cfg.target_update and"><span class="tag c">조건</span>다시 500수가 지났으면</summary>
+            <ul><li><div class="row" data-at="A#def learn(>>self.target_model.set_weights"><span class="fn qt">target_model.set_weights(model.get_weights())</span></div></li></ul>
+            </details>
+           </li>
+          </ul>
+         </li>
+         <li>
+          <details class="blk loop" open><summary data-at="P#for i in finished:"><span class="tag l">반복</span>방금 끝난 게임마다</summary>
+          <ul>
+           <li><div class="row" data-at="P#self.record_game(" data-def="T#def record_game("><span class="fn run">record_game()</span><span class="shared">공유</span><span class="why">history 항목, 최고 점수</span></div>
+            <ul><li><div class="row" data-at="T#self.agent.end_episode()" data-def="A#def end_episode("><span class="fn core">agent.end_episode()</span><span class="why">epsilon × 0.97, epsilon_min까지</span></div></li></ul>
+           </li>
+           <li><div class="row" data-at="P#self.states[i] = self.envs[i].reset()" data-def="E#def reset("><span class="fn core">env.reset()</span><span class="arrow">→</span><span class="fn game">board.reset()</span><span class="why">그 자리에 새 게임</span></div></li>
+          </ul>
+          </details>
+         </li>
+        </ul>
+       </li>
+       <li>
+        <details class="blk loop" open><summary data-at="H#for h in trainer.history[printed:]"><span class="tag l">반복</span>방금 끝난 게임마다</summary>
+        <ul>
+         <li><div class="row" data-at="H#print(f'episode"><span class="fn qt">print(episode, score, best, avg, epsilon, loss, moves/s, status)</span></div></li>
+         <li>
+          <details class="blk cond"><summary data-at="H#if h['episode'] % SAVE_EVERY"><span class="tag c">조건</span>50 에피소드마다</summary>
+          <ul><li><div class="row" data-at="H#if h['episode'] % SAVE_EVERY>>checkpoint.save(" data-def="CK#def save("><span class="fn core">checkpoint.save()</span><span class="shared">공유</span></div>
+           <ul>
+            <li><div class="row" data-at="CK#history, statuses = history_to_arrays" data-def="CK#def history_to_arrays("><span class="fn core">history_to_arrays()</span></div></li>
+            <li><div class="row" data-at="CK#np.savez("><span class="fn qt">np.savez(config, progress, weights, history)</span></div></li>
+           </ul>
+          </li></ul>
+          </details>
+         </li>
+        </ul>
+        </details>
+       </li>
+      </ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk cond"><summary data-at="H#except KeyboardInterrupt:"><span class="tag c">예외</span>Ctrl+C <span class="why">반복 중단</span></summary>
+      <ul><li><div class="row" data-at="H#except KeyboardInterrupt:"><span class="fn step">줄바꿈을 출력하고 마지막 저장으로 넘어감</span></div></li></ul>
+      </details>
+     </li>
+     <li><div class="row" data-at="H#except KeyboardInterrupt:>>checkpoint.save(" data-def="CK#def save("><span class="fn core">checkpoint.save()</span><span class="why">끝날 때 항상</span></div></li>
+    </ul>
+   </li>
+  </ul>
+ </li>
+</ul>
+</div>
+<p class="caption"><code>learn()</code>은 게임마다가 아니라 라운드마다 한 번입니다. 8게임이면 학습 한 스텝에 메모리 512개를 씁니다. target 네트워크 갱신은 수(move)를 세므로 약 62라운드마다 일어납니다.</p>
+
+<h2 id="flow-b"><span class="num">2</span>Dashboard 호출 흐름</h2>
+<p><code>main()</code>이 같은 <code>Trainer</code>(게임 하나)를 만들고 창을 연 뒤 Qt 이벤트 루프로 들어갑니다. 그 다음부터는 모두 콜백입니다. 타이머가 뱀을 움직이고, 키와 버튼으로 조작하며, Qt가 뷰를 다시 그립니다.</p>
+
+<div class="tools"><button data-fold="flow-b-tree" data-open="0">모두 접기</button><button data-fold="flow-b-tree" data-open="1">모두 펼치기</button></div>
+<div class="flow-wrap">
+<ul class="flow" id="flow-b-tree">
+ <li><div class="row" data-at="M#if __name__>>main()" data-def="M#def main("><span class="fn entry">main()</span></div>
+  <ul>
+   <li><div class="row" data-at="M#Config.load_last()" data-def="CF#def load_last("><span class="fn core">Config.load_last()</span><span class="shared">공유</span></div></li>
+   <li><div class="row" data-at="M#trainer = Trainer(settings)" data-def="T#def __init__("><span class="fn run">Trainer(settings)</span> or <span class="fn core">checkpoint.load()</span><span class="shared">공유</span><span class="why">흐름 1과 같음</span></div></li>
+   <li><div class="row" data-at="M#app = QApplication("><span class="fn qt">QApplication()</span></div></li>
+   <li><div class="row" data-at="M#window = Dashboard(trainer)" data-def="W#def __init__("><span class="fn view">Dashboard(trainer)</span></div>
+    <ul>
+     <li><div class="row" data-at="W#self.build_window()" data-def="W#def build_window("><span class="fn view">build_window()</span><span class="why">NetworkView, BoardView, ChartView, ConfigPanel, 버튼</span></div></li>
+     <li><div class="row" data-at="W#installEventFilter(self)"><span class="fn qt">installEventFilter()</span><span class="why">어디서든 Space / R / Q를 받음</span></div></li>
+     <li><div class="row" data-at="W#self.timer.start(16)"><span class="fn qt">QTimer.start(16)</span><span class="why">초당 약 60틱</span></div></li>
+     <li><div class="row" data-at="W#def __init__(>>self.start_game()" data-def="W#def start_game("><span class="fn view">start_game()</span><span class="arrow">→</span><span class="fn view">board.show_game(env)</span></div></li>
+    </ul>
+   </li>
+   <li><div class="row" data-at="M#sys.exit(app.exec_())"><span class="fn qt">app.exec_()</span><span class="why">Qt 이벤트 루프: 창이 닫힐 때까지 실행</span></div>
+    <ul>
+     <li>
+      <details class="blk event" open><summary data-at="W#self.timer.timeout.connect(self.on_timer)" data-def="W#def on_timer("><span class="tag e">이벤트</span>타이머 틱, 16 ms마다 <span class="why">→ on_timer()</span></summary>
+      <ul>
+       <li>
+        <details class="blk cond"><summary data-at="W#def on_timer(>>if self.paused:"><span class="tag c">조건</span>일시정지 중 <span class="why">return: 대신 Space로 진행</span></summary>
+        <ul><li><div class="row" data-at="W#def on_timer(>>return"><span class="fn step">이번 틱은 아무것도 안 함</span></div></li></ul>
+        </details>
+       </li>
+       <li>
+        <details class="blk loop" open><summary data-at="W#self.move_credit += speed * elapsed"><span class="tag l">반복</span>밀린 수만큼 <span class="why">speed × 경과 시간; Max: 12 ms 동안 계속</span></summary>
+        <ul>
+         <li><div class="row" data-at="W#self.move_credit -= 1>>self.one_move()" data-def="W#def one_move("><span class="fn view">one_move()</span></div>
+          <ul>
+           <li><div class="row" data-at="W#game_over = self.trainer.step()" data-def="T#def step("><span class="fn run">trainer.step()</span><span class="why">Trainer: 게임 하나에서 한 수</span></div>
+            <ul>
+             <li><div class="row" data-at="T#self.agent.choose_action(" data-def="A#def choose_action("><span class="fn core">agent.choose_action(state)</span><span class="arrow">→</span><span class="fn core">q_values()</span><span class="why">epsilon 확률로 무작위</span></div></li>
+             <li><div class="row" data-at="T#self.env.step(action)" data-def="E#def step("><span class="fn core">env.step(action)</span><span class="arrow">→</span><span class="fn game">snake.moveTo()</span><span class="shared">공유</span></div></li>
+             <li>
+              <details class="blk cond" open><summary data-at="T#if self.learning:"><span class="tag c">조건</span>학습 켜짐 <span class="why">꺼지면 최선의 수만 지켜봄</span></summary>
+              <ul>
+               <li><div class="row" data-at="T#self.agent.remember(" data-def="A#def remember("><span class="fn core">agent.remember()</span><span class="shared">공유</span></div></li>
+               <li><div class="row" data-at="T#loss = self.agent.learn()" data-def="A#def learn("><span class="fn core">agent.learn()</span><span class="arrow">→</span><span class="fn core">train_on_batch(64)</span><span class="shared">공유</span></div></li>
+              </ul>
+              </details>
+             </li>
+             <li><div class="row" data-at="T#self.last_move = dict("><span class="fn step">"last move" 패널에 보여줄 수를 저장</span></div></li>
+             <li>
+              <details class="blk cond"><summary data-at="T#if done:"><span class="tag c">조건</span>게임 종료</summary>
+              <ul><li><div class="row" data-at="T#self.finish_episode()" data-def="T#def finish_episode("><span class="fn run">finish_episode()</span><span class="arrow">→</span><span class="fn run">record_game()</span><span class="arrow">→</span><span class="fn run">start_episode()</span><span class="shared">공유</span></div></li></ul>
+              </details>
+             </li>
+            </ul>
+           </li>
+           <li>
+            <details class="blk cond"><summary data-at="W#if game_over:"><span class="tag c">조건</span>게임 종료</summary>
+            <ul><li><div class="row" data-at="W#self.game_finished()" data-def="W#def game_finished("><span class="fn view">game_finished()</span><span class="arrow">→</span><span class="fn view">chart.set_history()</span><span class="arrow">→</span><span class="fn view">start_game()</span></div></li></ul>
+            </details>
+           </li>
+          </ul>
+         </li>
+        </ul>
+        </details>
+       </li>
+       <li><div class="row" data-at="W#def on_timer(>>self.refresh()" data-def="W#def refresh("><span class="fn view">refresh()</span><span class="why">수가 몇 번이든 틱마다 한 번</span></div>
+        <ul>
+         <li><div class="row" data-at="W#s['episode'].setText"><span class="fn step">통계: episode, moves, epsilon, memory, best, loss…</span></div></li>
+         <li><div class="row" data-at="W#q_values = agent.q_values(trainer.state)" data-def="A#def q_values("><span class="fn core">agent.q_values(state)</span><span class="why">다음 수, 일시정지 중엔 보드에도 표시</span></div></li>
+         <li><div class="row" data-at="W#self.show_last_move()" data-def="W#def show_last_move("><span class="fn view">show_last_move()</span><span class="arrow">→</span><span class="fn core">agent.best_future_q()</span><span class="why">그 수의 Bellman target</span></div></li>
+         <li><div class="row" data-at="W#self.nn_view.show_brain(" data-def="A#def brain("><span class="fn view">nn_view.show_brain(agent.brain(state))</span><span class="why">가중치와 모든 층의 값</span></div></li>
+         <li><div class="row" data-at="W#self.board.update()"><span class="fn qt">board.update()</span>, <span class="fn qt">nn_view.update()</span><span class="why">Qt에 다시 그리기 요청</span></div></li>
+        </ul>
+       </li>
+      </ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk event"><summary data-def="BV#def paintEvent("><span class="tag e">이벤트</span>다시 그리기 <span class="why">→ 각 뷰의 paintEvent()</span></summary>
+      <ul>
+       <li><div class="row" data-at="BV#super().paintEvent(event)" data-def="B#def paintEvent("><span class="fn game">GameBoard.paintEvent()</span><span class="why">보드, 뱀, 사과</span></div></li>
+       <li><div class="row" data-at="BV#elif self.show_vision:"><span class="fn view">BoardView</span><span class="why">시야 광선 (Simple이면 3칸), 일시정지 중엔 Q값</span></div></li>
+       <li><div class="row" data-def="NV#def paintEvent("><span class="fn view">NetworkView.paintEvent()</span></div></li>
+       <li><div class="row" data-at="CV#self._sync()" data-def="CV#def paintEvent("><span class="fn view">ChartView.paintEvent()</span><span class="arrow">→</span><span class="fn view">_sync()</span><span class="why">새 에피소드를 배열에 추가, 픽셀 열마다 점 하나</span></div></li>
+      </ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk event"><summary data-def="W#def eventFilter("><span class="tag e">이벤트</span>키 입력 <span class="why">→ eventFilter()</span></summary>
+      <ul>
+       <li><div class="row" data-at="W#self.pause_or_step()" data-def="W#def pause_or_step("><span class="fn view">Space: pause_or_step()</span><span class="why">이미 일시정지면: one_move()</span></div></li>
+       <li><div class="row" data-at="W#if event.key() == Qt.Key_R:>>self.resume()" data-def="W#def resume("><span class="fn view">R: resume()</span></div></li>
+       <li><div class="row" data-at="W#if event.key() == Qt.Key_Q:>>self.close()"><span class="fn qt">Q: close()</span></div></li>
+      </ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk event"><summary data-at="W#self.panel.applied.connect(self.restart)" data-def="W#def restart("><span class="tag e">이벤트</span>설정 패널의 Apply <span class="why">→ restart(cfg)</span></summary>
+      <ul>
+       <li>
+        <details class="blk cond" open><summary data-at="W#if keep is not None and box.clickedButton() == keep:"><span class="tag c">조건</span>네트워크 구조가 같고 Keep agent</summary>
+        <ul><li><div class="row" data-at="W#self.trainer.use_settings(cfg)" data-def="T#def use_settings("><span class="fn run">trainer.use_settings(cfg)</span><span class="arrow">→</span><span class="fn core">agent.apply_settings()</span></div></li></ul>
+        </details>
+       </li>
+       <li>
+        <details class="blk cond" open><summary data-at="W#elif box.clickedButton() == new:"><span class="tag c">아니면</span>New agent</summary>
+        <ul><li><div class="row" data-at="W#self.use(Trainer(cfg))" data-def="W#def use("><span class="fn view">use(Trainer(cfg))</span></div></li></ul>
+        </details>
+       </li>
+       <li><div class="row" data-at="W#cfg.save(SETTINGS_FILE)"><span class="fn core">cfg.save(settings.json)</span><span class="why">headless도 이 설정으로 시작</span></div></li>
+      </ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk event"><summary data-at="W#save.clicked.connect(self.save)" data-def="W#def save("><span class="tag e">이벤트</span>Save 버튼 <span class="why">→ save()</span></summary>
+      <ul><li><div class="row" data-at="W#checkpoint.save(path, self.trainer)" data-def="CK#def save("><span class="fn core">checkpoint.save()</span><span class="shared">공유</span><span class="why">saves/checkpoint_&lt;state&gt;_ep&lt;N&gt;.npz</span></div></li></ul>
+      </details>
+     </li>
+     <li>
+      <details class="blk event"><summary data-at="W#load.clicked.connect(self.load_dialog)" data-def="W#def load_dialog("><span class="tag e">이벤트</span>Load… 버튼 <span class="why">→ load_dialog()</span></summary>
+      <ul>
+       <li><div class="row" data-at="W#checkpoint.load(path, self.trainer.cfg)" data-def="CK#def load("><span class="fn core">checkpoint.load()</span><span class="shared">공유</span></div></li>
+       <li><div class="row" data-at="W#def load_dialog(>>self.use(trainer)" data-def="W#def use("><span class="fn view">use(trainer)</span></div></li>
+      </ul>
+      </details>
+     </li>
+    </ul>
+   </li>
+  </ul>
+ </li>
+</ul>
+</div>
+<p class="caption">뷰는 수마다가 아니라 타이머 틱마다 한 번 다시 그립니다. 빠른 속도에서는 두 그림 사이에 많은 수가 진행됩니다. 일시정지 중 <kbd>Space</kbd>도 같은 <code>one_move()</code>를 거치므로 한 스텝씩 진행할 때도 학습합니다.</p>
+
+<h2 id="compare"><span class="num">3</span>나란히 비교</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>Headless</th><th>Dashboard</th></tr></thead>
+<tbody>
+<tr><td>구동</td><td><code>headless.train()</code>의 <code>while</code> 반복문</td><td>16 ms <code>QTimer</code> → <code>on_timer()</code></td></tr>
+<tr><td>트레이너</td><td><code>ParallelTrainer</code>, 8게임 (<code>--games</code>)</td><td><code>Trainer</code>, 1게임</td></tr>
+<tr><td>수 고르기</td><td><code>choose_actions()</code>: 모든 게임을 네트워크 호출 한 번으로</td><td><code>choose_action()</code>: 수마다 한 번 호출</td></tr>
+<tr><td>학습 스텝</td><td>라운드마다 한 번, 64 × 8 = 512개 메모리</td><td>수마다 한 번, 64개 메모리</td></tr>
+<tr><td>속도</td><td>최대한 빠르게</td><td>초당 1~1000수, 또는 Max (틱마다 12 ms 동안)</td></tr>
+<tr><td>출력</td><td>게임마다 한 줄 출력</td><td>보드, 네트워크, 통계, 차트</td></tr>
+<tr><td>저장</td><td>50 에피소드마다와 끝날 때, <code>saves/checkpoint_&lt;state&gt;.npz</code></td><td>Save 버튼, <code>saves/checkpoint_&lt;state&gt;_ep&lt;N&gt;.npz</code></td></tr>
+<tr><td>설정</td><td><code>settings.json</code> 읽기</td><td><code>settings.json</code> 읽기와 쓰기 (Apply, Load)</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+
+<aside id="srcpane" aria-label="소스 코드">
+  <div id="srcgrip" title="끌어서 크기 조절, 더블클릭하면 원래 크기로"></div>
+  <button id="srctab" title="소스 열기 / 닫기 (Esc로 닫힘)"><span>›</span></button>
+  <header><b id="srcfile"></b><span id="srcline"></span><select id="srcpick" aria-label="다른 파일 열기"></select></header>
+  <pre id="srccode"></pre>
+</aside>
+
+<!--
+  아래 소스 파일은 복사본이라 이 페이지는 디스크에서 바로 열어도 동작합니다.
+  코드를 바꾼 뒤에는 저장소 루트에서 다음 명령으로 복사본을 갱신하세요:
+    python3 -c "import json,re,pathlib as p;f=p.Path('docs/callflow_kr.html');s=f.read_text();d={n:p.Path(n).read_text() for n in json.loads(re.search(r'id=\"sources\">(.*?)</script>',s,re.S).group(1))};f.write_text(re.sub(r'(id=\"sources\">).*?(</script>)',lambda m:m.group(1)+json.dumps(d).replace('</','<\\\\/')+m.group(2),s,flags=re.S))"
+  줄 번호는 코드 텍스트를 검색해서 찾으므로, 줄이 옮겨져도 따라갑니다.
+-->
+<script type="application/json" id="aliases">{"M": "main.py", "CF": "RLAgent/config.py", "CK": "RLAgent/checkpoint.py", "T": "RLAgent/trainer.py", "P": "RLAgent/parallel_trainer.py", "H": "RLAgent/headless.py", "E": "RLAgent/environment.py", "A": "RLAgent/dqn_agent.py", "R": "RLAgent/replay_memory.py", "W": "Dashboard/main_window.py", "BV": "Dashboard/board_view.py", "NV": "Dashboard/nn_view.py", "CV": "Dashboard/chart_view.py", "S": "SnakeGame/snake.py", "B": "SnakeGame/boards.py"}</script>
+<script type="application/json" id="sources">{"main.py": "#!/usr/bin/env python\n\"\"\"Teach a neural network to play SnakeGame with Deep Q-Learning (TensorFlow).\n\n    python main.py                         dashboard: watch it learn, move by move\n    python main.py --headless              no window: train as fast as possible\n    python main.py --headless -e 300       ... stop after 300 episodes\n    python main.py --headless --games 1    ... one game at a time, exactly like the dashboard\n    python main.py --load saves/x.npz      continue from a checkpoint (either mode)\n\nBoth modes use settings.json: the settings last applied in the dashboard. With --load, the\nnetwork shape (state, hidden layers, activation) comes from the checkpoint instead.\n\nDashboard keys:  Space = pause / one move    R = resume    Q = quit\n\"\"\"\nimport argparse\nimport os\nimport sys\n\nos.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')       # hide TensorFlow's start-up messages\n\nfrom RLAgent.config import Config                        # noqa: E402\nfrom RLAgent.trainer import Trainer                      # noqa: E402\nfrom RLAgent import checkpoint                           # noqa: E402\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)\n    parser.add_argument('--headless', action='store_true', help='train without a window')\n    parser.add_argument('-e', '--episodes', type=int, default=0, help='headless: episodes to run (0 = until Ctrl+C)')\n    parser.add_argument('--games', type=int, default=8, help='headless: games played at once (default: 8)')\n    parser.add_argument('--save', help='headless: checkpoint file (default: saves/checkpoint_<vision|simple>.npz)')\n    parser.add_argument('--config', help='JSON settings file (default: settings.json, written by the dashboard)')\n    parser.add_argument('--load', help='checkpoint to continue from')\n    args = parser.parse_args()\n\n    settings = Config.load(args.config) if args.config else Config.load_last()\n    if args.load:\n        trainer = checkpoint.load(args.load, settings)   # network from the file, the rest from settings\n    else:\n        trainer = Trainer(settings)\n\n    if args.headless:\n        from RLAgent import headless\n        if args.games > 1:\n            from RLAgent.parallel_trainer import ParallelTrainer\n            trainer = ParallelTrainer.from_trainer(trainer, args.games)\n        save = args.save or f'saves/checkpoint_{trainer.cfg.state_type}.npz'\n        headless.train(trainer, args.episodes, save)\n    else:\n        from PyQt5.QtWidgets import QApplication\n        from Dashboard.main_window import Dashboard\n        app = QApplication(sys.argv)\n        app.setStyle('Fusion')\n        window = Dashboard(trainer)\n        window.show()\n        sys.exit(app.exec_())\n\n\nif __name__ == '__main__':\n    main()\n", "RLAgent/config.py": "\"\"\"All tunable settings for the network, the Q-learning, and the game.\"\"\"\nfrom dataclasses import dataclass, field, asdict\nimport json\nimport os\n\n# The settings the dashboard is using (written on Apply and on Load). Both modes start from them.\nSETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'settings.json')\n\n# Settings that decide the shape of the network. Saved weights only fit the network\n# they were trained with, so these always come from the checkpoint when one is loaded.\nBRAIN_SETTINGS = ['state_type', 'vision_directions', 'apple_self_vision', 'hidden_layers', 'hidden_activation']\n\n\n@dataclass\nclass Config:\n    # ---- Game -------------------------------------------------------------\n    grid_x: int = 20                         # keep it even: the game starts the snake at grid/2\n    grid_y: int = 20\n\n    # ---- State: what the agent sees (see environment.py) --------------------\n    state_type: str = 'vision'               # vision: the same inputs as SnakeGenetics | simple: 14 yes/no facts\n    vision_directions: int = 8               # vision: 8 or 4 rays\n    apple_self_vision: str = 'binary'        # vision: binary | distance\n\n    # ---- Neural network (the Q-function) -----------------------------------\n    hidden_layers: list = field(default_factory=lambda: [32, 16])  # neurons per hidden layer\n    hidden_activation: str = 'relu'          # relu | tanh | sigmoid\n    learning_rate: float = 0.001             # Adam optimizer step size\n    loss: str = 'mse'                        # mse | huber\n\n    # ---- Q-learning --------------------------------------------------------\n    gamma: float = 0.9                       # discount: how much future rewards count (0..1)\n    epsilon_start: float = 1.0               # chance of a random move at the start\n    epsilon_min: float = 0.01                # it never explores less than this\n    epsilon_decay: float = 0.97              # epsilon is multiplied by this after every episode\n\n    # ---- Experience replay -------------------------------------------------\n    memory_size: int = 100_000               # how many past moves are remembered\n    batch_size: int = 64                     # memories used per training step\n    train_every: int = 1                     # train once every N moves\n    target_update: int = 500                 # copy the network to the target network every N moves (0 = no target network)\n\n    # ---- Rewards -----------------------------------------------------------\n    reward_apple: float = 10.0\n    reward_death: float = -10.0              # hitting the wall or itself, or starving\n    reward_step: float = 0.0                 # every other move\n\n    seed: int = 0                            # 0 = random\n\n    # ---------------------------------------------------------------------\n    @property\n    def num_inputs(self):\n        if self.state_type == 'simple':\n            return 14                        # wall F/R/L + moving R/D/L/U + body F/R/L + apple L/R/U/D\n        return self.vision_directions * 3 + 4 + 4   # rays x (wall, apple, self) + head dir + tail dir\n\n    @property\n    def num_outputs(self):\n        return 3                             # one Q-value per move: [forward, right, left]\n\n    @property\n    def layer_sizes(self):\n        return [self.num_inputs] + list(self.hidden_layers) + [self.num_outputs]\n\n    def to_dict(self):\n        return asdict(self)\n\n    @classmethod\n    def from_dict(cls, d):\n        known = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}\n        return cls(**known)\n\n    def save(self, path):\n        with open(path, 'w') as f:\n            json.dump(self.to_dict(), f, indent=2)\n\n    @classmethod\n    def load(cls, path):\n        with open(path) as f:\n            return cls.from_dict(json.load(f))\n\n    @classmethod\n    def load_last(cls):\n        \"\"\"The settings last applied in the dashboard, or the defaults if there are none yet.\"\"\"\n        if os.path.exists(SETTINGS_FILE):\n            return cls.load(SETTINGS_FILE)\n        return cls()\n\n    def same_brain_as(self, other):\n        return all(getattr(self, name) == getattr(other, name) for name in BRAIN_SETTINGS)\n\n    def with_brain_of(self, other):\n        \"\"\"A copy of these settings, but with the brain settings taken from `other`.\"\"\"\n        d = self.to_dict()\n        for name in BRAIN_SETTINGS:\n            d[name] = getattr(other, name)\n        return Config.from_dict(d)\n", "RLAgent/checkpoint.py": "\"\"\"Save / load training to one .npz file: settings, network weights, epsilon and history.\n\nThe replay memory is not saved (it can hold 100,000 moves); it refills quickly.\nThe history (one entry per episode) is saved as one compact array per field, about 20 bytes\nper episode, instead of as text. Older files with the history as text still load.\n\"\"\"\nimport json\nimport numpy as np\n\nfrom .config import Config\nfrom .dqn_agent import DQNAgent\nfrom .trainer import Trainer\n\n# history field -> array type in the file ('status' is stored as a number, see below)\nHISTORY_FIELDS = {'episode': np.int32, 'score': np.int16, 'steps': np.int32, 'avg_score': np.float32,\n                  'epsilon': np.float32, 'total_reward': np.float32, 'loss': np.float32}\n\n\ndef history_to_arrays(history):\n    arrays = {f'history_{key}': np.array([np.nan if h[key] is None else h[key] for h in history], dtype=kind)\n              for key, kind in HISTORY_FIELDS.items()}\n    statuses = sorted({h['status'] for h in history})                 # e.g. ['body', 'starved', 'wall']\n    code = {name: i for i, name in enumerate(statuses)}\n    arrays['history_status'] = np.array([code[h['status']] for h in history], dtype=np.uint8)\n    return arrays, statuses\n\n\ndef arrays_to_history(data, statuses):\n    columns = {key: data[f'history_{key}'].tolist() for key in HISTORY_FIELDS}\n    columns['loss'] = [None if loss != loss else loss for loss in columns['loss']]    # NaN = no loss\n    columns['status'] = [statuses[i] for i in data['history_status'].tolist()]\n    keys = list(columns)\n    return [dict(zip(keys, values)) for values in zip(*columns.values())]\n\n\ndef save(path, trainer):\n    agent = trainer.agent\n    history, statuses = history_to_arrays(trainer.history)\n    progress = dict(episode=trainer.episode, history_statuses=statuses, best_score=trainer.best_score,\n                    best_episode=trainer.best_episode, epsilon=agent.epsilon, moves=agent.moves,\n                    train_steps=agent.train_steps, target_updates=agent.target_updates)\n    weights = {f'weight_{i}': w for i, w in enumerate(agent.model.get_weights())}\n    np.savez(path, config=json.dumps(trainer.cfg.to_dict()), progress=json.dumps(progress), **weights, **history)\n\n\ndef load(path, settings=None):\n    \"\"\"A Trainer that continues from the file. The network shape always comes from the file;\n    every other setting comes from `settings` when given.\"\"\"\n    data = np.load(path)\n    saved = Config.from_dict(json.loads(str(data['config'])))\n    cfg = settings.with_brain_of(saved) if settings else saved\n\n    agent = DQNAgent(cfg)\n    count = len([key for key in data.files if key.startswith('weight_')])\n    agent.model.set_weights([data[f'weight_{i}'] for i in range(count)])\n    agent.target_model.set_weights(agent.model.get_weights())\n\n    progress = json.loads(str(data['progress']))\n    agent.epsilon = progress['epsilon']\n    agent.moves = progress['moves']\n    agent.train_steps = progress['train_steps']\n    agent.target_updates = progress['target_updates']\n\n    trainer = Trainer(cfg, agent)\n    trainer.episode = progress['episode']\n    if 'history' in progress:                       # older files: the history as text\n        trainer.history = progress['history']\n    else:\n        trainer.history = arrays_to_history(data, progress['history_statuses'])\n    trainer.best_score = progress['best_score']\n    trainer.best_episode = progress['best_episode']\n    return trainer\n", "RLAgent/trainer.py": "\"\"\"The reinforcement-learning loop, one move at a time.\n\n    for each episode (one game):\n        state = env.reset()\n        until the game ends:                                       <- step()\n            action = agent.choose_action(state)                    epsilon-greedy\n            next_state, reward, done = env.step(action)            the game moves the snake\n            agent.remember(state, action, reward, next_state, done)\n            agent.learn()                                          train on a random batch of memories\n            state = next_state\n        agent.end_episode()                                        explore a little less\n\nThe dashboard calls step() as fast as the chosen speed, or once per Space key while paused.\nHeadless mode calls it in a plain loop.\n\"\"\"\nfrom .environment import SnakeEnv\nfrom .dqn_agent import DQNAgent\n\nAVERAGE_OVER = 50     # episodes in the moving average\n\n\nclass Trainer:\n    def __init__(self, cfg, agent=None):\n        self.cfg = cfg\n        self.env = SnakeEnv(cfg)\n        self.agent = agent or DQNAgent(cfg)\n        self.learning = True      # False: just watch it play its best moves, no exploring, no training\n\n        self.episode = 1          # the game being played now\n        self.history = []         # one entry per finished training episode, for the chart\n        self.best_score = 0\n        self.best_episode = 0\n        self.previous = '-'       # how the last game ended\n        self.last_move = None     # the move just made: state, action, reward, ... (for the dashboard).\n        self.start_episode()      # It is kept when a new game starts, so the deadly move can be seen.\n\n    def start_episode(self):\n        self.state = self.env.reset()\n        self.episode_return = 0.0       # sum of the rewards in this game\n        self.episode_losses = []\n\n    def step(self):\n        \"\"\"Make one move and learn from it. Returns True when that move ended the game.\"\"\"\n        state = self.state\n        action, explored = self.agent.choose_action(state, explore=self.learning)\n        next_state, reward, done = self.env.step(action)\n\n        loss = None\n        if self.learning:\n            self.agent.remember(state, action, reward, next_state, done)\n            loss = self.agent.learn()\n            if loss is not None:\n                self.episode_losses.append(loss)\n\n        self.episode_return += reward\n        self.last_move = dict(state=state, action=action, explored=explored, reward=reward,\n                              next_state=next_state, done=done, status=self.env.status, loss=loss)\n        self.state = next_state\n        if done:\n            self.finish_episode()\n        return done\n\n    def finish_episode(self):\n        self.record_game(self.env, self.episode_return, self.episode_losses)\n        self.start_episode()\n\n    def record_game(self, env, total_reward, losses):\n        \"\"\"Count a finished game: history for the chart, best score, and a little less exploring.\"\"\"\n        self.previous = f'{env.score} apples, {env.status}'\n        if not self.learning:\n            return                  # while only watching, games are not counted as training episodes\n        if env.score > self.best_score or not self.best_episode:\n            self.best_score, self.best_episode = env.score, self.episode\n        recent = [h['score'] for h in self.history[-(AVERAGE_OVER - 1):]] + [env.score]\n        self.history.append(dict(\n            episode=self.episode, score=env.score, steps=env.steps, status=env.status,\n            avg_score=sum(recent) / len(recent), epsilon=self.agent.epsilon, total_reward=total_reward,\n            loss=sum(losses) / len(losses) if losses else None))\n        self.agent.end_episode()\n        self.episode += 1\n\n    def use_settings(self, cfg):\n        \"\"\"New settings, same agent: start a fresh game with them.\"\"\"\n        self.cfg = cfg\n        self.agent.apply_settings(cfg)\n        self.env = SnakeEnv(cfg)\n        self.start_episode()\n", "RLAgent/parallel_trainer.py": "\"\"\"Headless only: several games at once, sharing one agent and one replay memory.\n\nEach round:\n    one network call picks a move for every game         (agent.choose_actions)\n    every game makes its move, and it is remembered\n    one training step, on a batch of batch_size x games  (agent.learn)\n\nAsking the network about 8 states costs about the same as asking about 1, so this is several\ntimes faster than Trainer. The network still learns from as many memories per move, but in\none big training step per round instead of one small step per move.\nThe dashboard uses Trainer: one game, easy to follow.\n\"\"\"\nfrom .environment import SnakeEnv\nfrom .trainer import Trainer\n\n\nclass ParallelTrainer(Trainer):\n    def __init__(self, cfg, agent=None, games=8):\n        super().__init__(cfg, agent)                     # the agent and the progress (episode, history, ...)\n        self.envs = [SnakeEnv(cfg) for _ in range(games)]\n        self.states = [env.reset() for env in self.envs]\n        self.returns = [0.0] * games                     # sum of rewards in each game\n        self.losses = [[] for _ in range(games)]         # losses during each game\n\n    @classmethod\n    def from_trainer(cls, trainer, games):\n        \"\"\"The same agent and progress (e.g. from a checkpoint), now playing several games at once.\"\"\"\n        parallel = cls(trainer.cfg, trainer.agent, games)\n        parallel.episode, parallel.history = trainer.episode, trainer.history\n        parallel.best_score, parallel.best_episode = trainer.best_score, trainer.best_episode\n        return parallel\n\n    def step(self):\n        \"\"\"One move in every game, then learn. Returns True when at least one game ended.\"\"\"\n        actions, _ = self.agent.choose_actions(self.states)\n        finished = []\n        for i, env in enumerate(self.envs):\n            next_state, reward, done = env.step(actions[i])\n            self.agent.remember(self.states[i], actions[i], reward, next_state, done)\n            self.returns[i] += reward\n            self.states[i] = next_state\n            if done:\n                finished.append(i)\n\n        loss = self.agent.learn(moves=len(self.envs))\n        if loss is not None:\n            for game_losses in self.losses:\n                game_losses.append(loss)\n\n        for i in finished:                               # record the finished games, start new ones\n            self.record_game(self.envs[i], self.returns[i], self.losses[i])\n            self.states[i] = self.envs[i].reset()\n            self.returns[i], self.losses[i] = 0.0, []\n        return bool(finished)\n", "RLAgent/headless.py": "\"\"\"Train without a window, as fast as possible. Ctrl+C stops and saves.\n\nWorks with Trainer (one game) and ParallelTrainer (several games at once).\n\"\"\"\nimport os\nimport time\n\nfrom . import checkpoint\n\nSAVE_EVERY = 50     # episodes\n\n\ndef train(trainer, episodes, save_path):\n    os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)\n    last_episode = trainer.episode + episodes - 1 if episodes else None\n    games = len(getattr(trainer, 'envs', [trainer.env]))\n    print(f'Training. Network {trainer.cfg.layer_sizes}, {games} game(s) at once. '\n          f'Ctrl+C to stop and save to {save_path}')\n    started, moves_at_start = time.time(), trainer.agent.moves\n    printed = len(trainer.history)\n    try:\n        while last_episode is None or trainer.episode <= last_episode:\n            trainer.step()\n            for h in trainer.history[printed:]:                 # the games that just ended\n                loss = f'{h[\"loss\"]:.3f}' if h['loss'] is not None else '-'\n                speed = (trainer.agent.moves - moves_at_start) / (time.time() - started)\n                print(f'episode {h[\"episode\"]:5d}   score {h[\"score\"]:3d}   '\n                      f'best {trainer.best_score:3d}   avg(50) {h[\"avg_score\"]:6.2f}   '\n                      f'epsilon {h[\"epsilon\"]:.3f}   loss {loss}   '\n                      f'{speed:5.0f} moves/s   ({h[\"status\"]})')\n                if h['episode'] % SAVE_EVERY == 0:\n                    checkpoint.save(save_path, trainer)\n            printed = len(trainer.history)\n    except KeyboardInterrupt:\n        print()\n    checkpoint.save(save_path, trainer)\n    print(f'Saved {save_path}')\n", "RLAgent/environment.py": "\"\"\"The environment: the Snake game seen through the eyes of a reinforcement-learning agent.\n\nThe agent and the environment talk in a loop:\n\n        state  \u2500\u2500\u25ba  agent picks an action  \u2500\u2500\u25ba  environment moves the snake\n          \u25b2                                                   \u2502\n          \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500  next state, reward, done  \u25c4\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nThe game itself is the original, unmodified code in ../SnakeGame (snake.Snake and boards.Board).\nThis file only adds what RL needs: a state (a list of numbers) and a reward.\n\nTwo kinds of state (setting 'state_type'):\n  vision   the same inputs as SnakeGenetics: the snake looks along 8 (or 4) rays and sees\n           the wall, the apple and its own body; plus the head and the tail direction. 32 numbers.\n  simple   14 yes/no facts: a wall forward/right/left?, the moving direction,\n           the snake's own body forward/right/left?, which side the apple is.\n\"\"\"\nimport os\nimport sys\nimport numpy as np\n\n# Make the original game importable.\nGAME_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'SnakeGame')\nsys.path.insert(0, GAME_DIR)\nfrom snake import Snake, Direction, Point   # noqa: E402\nfrom boards import Board                    # noqa: E402\n\n# The game's own move encoding: [forward, right, left]. Action i means ACTIONS[i].\nACTIONS = [Snake.action_f, Snake.action_r, Snake.action_l]\nACTION_NAMES = ['Forward', 'Right', 'Left']\n\n# The game lists the directions clockwise: RIGHT, DOWN, LEFT, UP.\n# So \"turn right\" is the next one in this list, and \"turn left\" the previous one.\nCLOCKWISE = list(Direction)\n\n# Vision: the directions the snake looks in, as (dx, dy). y grows downward on screen.\nRAYS_8 = {'U': (0, -1), 'UR': (1, -1), 'R': (1, 0), 'DR': (1, 1),\n          'D': (0, 1), 'DL': (-1, 1), 'L': (-1, 0), 'UL': (-1, -1)}\nRAYS_4 = {'U': (0, -1), 'R': (1, 0), 'D': (0, 1), 'L': (-1, 0)}\nUDLR = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT]\n\nSIMPLE_LABELS = ['Wall F', 'Wall R', 'Wall L',\n                 'Moving R', 'Moving D', 'Moving L', 'Moving U',\n                 'Body F', 'Body R', 'Body L',\n                 'Apple L', 'Apple R', 'Apple U', 'Apple D']\n\n\ndef rays_of(cfg):\n    return RAYS_8 if cfg.vision_directions == 8 else RAYS_4\n\n\ndef state_labels(cfg):\n    \"\"\"What each state number means. Vision: 'U-W' = wall looking up, 'U-A' = apple, 'U-S' = self.\"\"\"\n    if cfg.state_type == 'simple':\n        return SIMPLE_LABELS\n    labels = []\n    for name in rays_of(cfg):\n        labels += [name + '-W', name + '-A', name + '-S']\n    return labels + ['HU', 'HD', 'HL', 'HR', 'TU', 'TD', 'TL', 'TR']\n\n\nclass SnakeEnv:\n    def __init__(self, cfg):\n        self.cfg = cfg\n        self.board = Board(cfg.grid_x, cfg.grid_y)\n        self.snake = Snake(cfg.grid_x, cfg.grid_y)\n        self.board.snake = self.snake\n        self.ray_hits = []               # vision: what each ray saw, for drawing\n        self.reset()\n\n    @property\n    def score(self):\n        return self.snake.score\n\n    def reset(self):\n        \"\"\"Start a new game and return the first state.\"\"\"\n        self.board.reset()               # the original game: new snake, new apple\n        self.steps = 0\n        self.status = 'ok'               # 'ok', 'apple', or how it ended: 'wall', 'body', 'starved', 'won'\n        self.done = False\n        return self.get_state()\n\n    def get_state(self):\n        state = self.simple_state() if self.cfg.state_type == 'simple' else self.vision_state()\n        return np.array(state, dtype=np.float32)\n\n    # ---- state 'vision': the same inputs as SnakeGenetics -----------------\n    def vision_state(self):\n        \"\"\"For every ray: 1/distance to the wall, whether the apple is on the ray, whether the\n        snake's own body is on the ray. Then the head direction and the tail direction,\n        each as 4 numbers where only one is 1 (up, down, left, right).\"\"\"\n        head_x, head_y = int(self.snake.head.x), int(self.snake.head.y)\n        body = [(int(p.x), int(p.y)) for p in self.snake.body[1:]]\n        apple = (int(self.board.apple.x), int(self.board.apple.y))\n        binary = self.cfg.apple_self_vision == 'binary'\n\n        state = []\n        self.ray_hits = []\n        for dx, dy in rays_of(self.cfg).values():\n            # walk along the ray until we leave the board\n            x, y, distance = head_x + dx, head_y + dy, 1\n            apple_distance, body_distance = 0, 0\n            while 0 <= x < self.cfg.grid_x and 0 <= y < self.cfg.grid_y:\n                if apple_distance == 0 and (x, y) == apple:\n                    apple_distance = distance\n                if body_distance == 0 and (x, y) in body:\n                    body_distance = distance\n                x, y, distance = x + dx, y + dy, distance + 1\n            self.ray_hits.append((dx, dy, distance, apple_distance, body_distance))\n\n            state.append(1 / distance)                       # wall: the closer, the bigger\n            if binary:\n                state.append(1 if apple_distance else 0)\n                state.append(1 if body_distance else 0)\n            else:\n                state.append(1 / apple_distance if apple_distance else 0)\n                state.append(1 / body_distance if body_distance else 0)\n\n        for d in UDLR:                                       # which way the head is going\n            state.append(1 if self.snake.direction == d else 0)\n        tail, before_tail = self.snake.body[-1], self.snake.body[-2]\n        tail_direction = (before_tail.x - tail.x, before_tail.y - tail.y)\n        for d in UDLR:                                       # which way the tail is going\n            state.append(1 if tail_direction == d.value else 0)\n        return state\n\n    # ---- state 'simple': 14 yes/no facts ------------------------------------\n    def cells_around_head(self):\n        \"\"\"The cells straight ahead, to the right and to the left of the head.\"\"\"\n        i = CLOCKWISE.index(self.snake.direction)\n        cells = []\n        for direction in (CLOCKWISE[i], CLOCKWISE[(i + 1) % 4], CLOCKWISE[(i - 1) % 4]):\n            dx, dy = direction.value\n            cells.append(Point(self.snake.head.x + dx, self.snake.head.y + dy))\n        return cells                     # [forward, right, left]\n\n    def is_wall(self, cell):\n        \"\"\"Is this cell outside the board?\"\"\"\n        return not (0 <= cell.x < self.cfg.grid_x and 0 <= cell.y < self.cfg.grid_y)\n\n    def is_body(self, cell):\n        \"\"\"Is the snake's own body in this cell?\"\"\"\n        return cell in self.snake.body\n\n    def is_danger(self, cell):\n        \"\"\"Would moving into this cell end the game? (a wall, or the snake's own body)\"\"\"\n        return self.is_wall(cell) or self.is_body(cell)\n\n    def simple_state(self):\n        head, apple, direction = self.snake.head, self.board.apple, self.snake.direction\n        cells = self.cells_around_head()                                      # forward, right, left\n        state = [self.is_wall(cell) for cell in cells]                        # wall F, R, L\n        state += [direction == Direction.RIGHT, direction == Direction.DOWN,  # moving R, D, L, U\n                  direction == Direction.LEFT, direction == Direction.UP]\n        state += [self.is_body(cell) for cell in cells]                       # body F, R, L\n        state += [apple.x < head.x, apple.x > head.x,                         # apple L, R, U, D\n                  apple.y < head.y, apple.y > head.y]\n        return state\n\n    # ---- one move ---------------------------------------------------------\n    def step(self, action):\n        \"\"\"Do action 0, 1 or 2 (forward, right, left). Returns (next_state, reward, done).\"\"\"\n        self.status = self.snake.moveTo(ACTIONS[action])\n        self.steps += 1\n\n        if self.status == 'apple':\n            reward = self.cfg.reward_apple\n            if len(self.snake.body) == self.cfg.grid_x * self.cfg.grid_y:\n                self.status, self.done = 'won', True          # no room left for an apple\n            else:\n                self.board.generate_apple(self.snake)\n        elif self.status == 'ok':\n            reward = self.cfg.reward_step\n        else:                                                 # 'wall', 'body' or 'starved'\n            reward = self.cfg.reward_death\n            self.done = True\n\n        return self.get_state(), reward, self.done\n\n\ndef describe_state(state, cfg):\n    \"\"\"The state in words, e.g. 'wall: R  |  moving: U  |  body: -  |  apple: L U'.\"\"\"\n    def names(values, letters):\n        return ' '.join(letter for letter, value in zip(letters, values) if value) or '-'\n\n    if cfg.state_type == 'simple':\n        return f'wall: {names(state[0:3], \"FRL\")}  |  moving: {names(state[3:7], \"RDLU\")}  |  ' \\\n               f'body: {names(state[7:10], \"FRL\")}  |  apple: {names(state[10:14], \"LRUD\")}'\n    rays = list(rays_of(cfg))\n    n = len(rays) * 3\n    return f'apple seen: {names(state[1:n:3], rays)}  |  body seen: {names(state[2:n:3], rays)}  |  ' \\\n           f'moving: {names(state[n:n + 4], \"UDLR\")}  |  tail: {names(state[n + 4:n + 8], \"UDLR\")}'\n", "RLAgent/dqn_agent.py": "\"\"\"The agent: a Deep Q-Network (DQN) built with TensorFlow / Keras.\n\nQ(state, action) = \"how much reward do I expect in the future if I make this move now?\"\n\nThe network takes the state numbers (32 for Vision, 14 for Simple) and outputs 3 Q-values,\none per move (forward, right, left). The agent plays the move with the biggest Q-value,\nexcept when it explores: then it plays a random move (epsilon-greedy).\n\nIt learns with the Bellman equation. After a move we know the reward we got and the\nstate we landed in, so a better guess for Q(state, action) is:\n\n        target = reward + gamma * max Q(next_state, any move)      (just reward if the game ended)\n\nTraining nudges the network's Q(state, action) toward this target.\n\"\"\"\nimport random\nfrom types import SimpleNamespace\nimport numpy as np\nimport keras\n\nfrom .replay_memory import ReplayMemory\n\n\ndef build_network(cfg):\n    \"\"\"state -> hidden layers -> Q-values (3).\"\"\"\n    inputs = keras.Input(shape=(cfg.num_inputs,), name='state')\n    x = inputs\n    for i, neurons in enumerate(cfg.hidden_layers):\n        x = keras.layers.Dense(neurons, activation=cfg.hidden_activation, name=f'hidden_{i + 1}')(x)\n    # Q-values can be any number (negative too), so the output layer has no activation.\n    q_values = keras.layers.Dense(cfg.num_outputs, activation='linear', name='q_values')(x)\n\n    model = keras.Model(inputs, q_values)\n    model.compile(optimizer=keras.optimizers.Adam(learning_rate=cfg.learning_rate), loss=cfg.loss)\n    return model\n\n\nclass DQNAgent:\n    def __init__(self, cfg):\n        self.cfg = cfg\n        if cfg.seed:\n            keras.utils.set_random_seed(cfg.seed)     # Python, NumPy and TensorFlow\n        self.model = build_network(cfg)               # the network that learns and plays\n        self.target_model = build_network(cfg)        # a frozen copy, used only for the targets\n        self.target_model.set_weights(self.model.get_weights())\n        self.memory = ReplayMemory(cfg.memory_size)\n\n        self.epsilon = cfg.epsilon_start              # chance of a random move\n        self.moves = 0                                # moves made while learning\n        self.train_steps = 0                          # times the network was trained\n        self.target_updates = 0                       # times the target network was refreshed\n        self.last_loss = None\n\n        # Same layers as `model`, but returns every layer's output. Only for the dashboard.\n        dense_layers = [layer for layer in self.model.layers if isinstance(layer, keras.layers.Dense)]\n        self.inspect_model = keras.Model(self.model.inputs, [layer.output for layer in dense_layers])\n\n    # ---- acting -------------------------------------------------------------\n    def q_values(self, state):\n        \"\"\"The network's Q-values for one state: [Q(forward), Q(right), Q(left)].\"\"\"\n        return self.model.predict_on_batch(np.array([state]))[0]\n\n    def choose_action(self, state, explore=True):\n        \"\"\"Epsilon-greedy. Returns (action, explored): explored is True for a random move.\"\"\"\n        if explore and random.random() < self.epsilon:\n            return random.randrange(self.cfg.num_outputs), True\n        return int(np.argmax(self.q_values(state))), False\n\n    def choose_actions(self, states, explore=True):\n        \"\"\"choose_action() for several games at once, with one network call for all their states.\n        Returns (actions, explored) as two lists. Used by ParallelTrainer.\"\"\"\n        all_q = self.model.predict_on_batch(np.array(states))\n        actions, explored = [], []\n        for q in all_q:\n            if explore and random.random() < self.epsilon:\n                actions.append(random.randrange(self.cfg.num_outputs))\n                explored.append(True)\n            else:\n                actions.append(int(np.argmax(q)))\n                explored.append(False)\n        return actions, explored\n\n    # ---- learning -----------------------------------------------------------\n    def remember(self, state, action, reward, next_state, done):\n        self.memory.add(state, action, reward, next_state, done)\n\n    def learn(self, moves=1):\n        \"\"\"Called after every move. Trains on a random batch of memories when it is time.\n\n        ParallelTrainer calls it once per round, with moves = the number of games. The batch then\n        grows with it, so the network still learns from as many memories per move.\n        Returns the loss, or None when it did not train.\"\"\"\n        cfg = self.cfg\n        before = self.moves\n        self.moves += moves\n        trainings_due = self.moves // cfg.train_every - before // cfg.train_every   # usually 0 or 1\n        batch_size = cfg.batch_size * trainings_due\n        loss = None\n        if trainings_due and len(self.memory) >= batch_size:\n            loss = self.train_on_batch(*self.memory.sample(batch_size))\n        if cfg.target_update and self.moves // cfg.target_update > before // cfg.target_update:\n            self.target_model.set_weights(self.model.get_weights())\n            self.target_updates += 1\n        return loss\n\n    def train_on_batch(self, states, actions, rewards, next_states, dones):\n        \"\"\"One step of Q-learning on a batch of memories.\"\"\"\n        # 1. What the network predicts now, for every move.\n        targets = self.model.predict_on_batch(states)\n\n        # 2. The best Q-value of the state after each move. The target network is a copy of\n        #    the network from a while ago: chasing a target that moves with every training\n        #    step makes learning unstable.\n        target_net = self.target_model if self.cfg.target_update else self.model\n        next_q = target_net.predict_on_batch(next_states)\n\n        # 3. Bellman: target = reward + gamma * best future Q. No future when the game ended.\n        future = self.cfg.gamma * next_q.max(axis=1) * (1 - dones)\n        rows = np.arange(len(actions))\n        targets[rows, actions] = rewards + future   # only the move actually made gets a new target\n\n        # 4. Move the network's predictions toward the targets.\n        self.last_loss = float(self.model.train_on_batch(states, targets))\n        self.train_steps += 1\n        return self.last_loss\n\n    def end_episode(self):\n        \"\"\"After each game, explore a little less.\"\"\"\n        self.epsilon = max(self.cfg.epsilon_min, self.epsilon * self.cfg.epsilon_decay)\n\n    # ---- for the dashboard --------------------------------------------------\n    def best_future_q(self, next_state):\n        \"\"\"max Q(next_state, any move), as train_on_batch() computes it. To show one Bellman target.\"\"\"\n        target_net = self.target_model if self.cfg.target_update else self.model\n        return float(target_net.predict_on_batch(np.array([next_state]))[0].max())\n\n    def layer_values(self, state):\n        \"\"\"Every layer's values for one state: [inputs, hidden 1, ..., Q-values].\"\"\"\n        outputs = self.inspect_model.predict_on_batch(np.array([state]))\n        if not isinstance(outputs, (list, tuple)):    # a network without hidden layers\n            outputs = [outputs]\n        return [np.array(state)] + [out[0] for out in outputs]\n\n    def brain(self, state):\n        \"\"\"The network in the form the dashboard's NetworkView (from SnakeGenetics) draws:\n        layer sizes, weights[i][to, from] and every layer's values for this state.\n        (Keras stores each weight matrix the other way round, [from, to], hence .T)\"\"\"\n        return SimpleNamespace(layer_sizes=self.cfg.layer_sizes,\n                               weights=[kernel.T for kernel in self.model.get_weights()[0::2]],\n                               activations=self.layer_values(state))\n\n    def apply_settings(self, cfg):\n        \"\"\"Use new settings but keep what was learned (same network shape).\"\"\"\n        self.cfg = cfg\n        self.model.optimizer.learning_rate.assign(cfg.learning_rate)\n        if self.memory.capacity != cfg.memory_size:\n            self.memory.resize(cfg.memory_size)\n        self.epsilon = max(cfg.epsilon_min, min(self.epsilon, cfg.epsilon_start))\n", "RLAgent/replay_memory.py": "\"\"\"Experience replay: remember past moves and learn from a random handful of them.\n\nLearning only from the move just made is unstable: consecutive moves look almost the\nsame, so the network keeps over-fitting to whatever just happened. Instead, every move\n(state, action, reward, next_state, done) goes into a big memory, and each training step\nuses a random batch from it, old and new moves mixed.\n\"\"\"\nimport random\nfrom collections import deque\nimport numpy as np\n\n\nclass ReplayMemory:\n    def __init__(self, capacity):\n        self.memories = deque(maxlen=capacity)     # when full, the oldest memory is dropped\n\n    def __len__(self):\n        return len(self.memories)\n\n    @property\n    def capacity(self):\n        return self.memories.maxlen\n\n    def add(self, state, action, reward, next_state, done):\n        self.memories.append((state, action, reward, next_state, done))\n\n    def sample(self, batch_size):\n        \"\"\"A random batch, as five arrays: states, actions, rewards, next_states, dones.\"\"\"\n        batch = random.sample(self.memories, batch_size)\n        states, actions, rewards, next_states, dones = zip(*batch)\n        return (np.array(states, dtype=np.float32), np.array(actions),\n                np.array(rewards, dtype=np.float32), np.array(next_states, dtype=np.float32),\n                np.array(dones, dtype=np.float32))\n\n    def resize(self, capacity):\n        \"\"\"Change the capacity, keeping the newest memories.\"\"\"\n        self.memories = deque(self.memories, maxlen=capacity)\n", "Dashboard/main_window.py": "\"\"\"The dashboard: watch Deep Q-Learning train, move by move.\n\nThe training loop is in RLAgent/trainer.py. This window calls it one move at a time:\n\n    for each episode (one game):\n        until the game ends:                    <- one_move(): trainer.step()\n            choose a move (sometimes a random one), make it,\n            remember it, train on a random batch of memories\n        explore a little less                   <- game_finished()\n\nKeys:  Space = pause, or one move while paused    R = resume    Q = quit\n\"\"\"\nimport os\nimport time\nfrom PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QGridLayout, QLabel,\n                             QPushButton, QComboBox, QSplitter, QFileDialog, QMessageBox, QApplication,\n                             QCheckBox, QGroupBox, QSizePolicy)\nfrom PyQt5.QtCore import Qt, QTimer, QEvent\n\nfrom RLAgent.trainer import Trainer, AVERAGE_OVER\nfrom RLAgent.config import SETTINGS_FILE\nfrom RLAgent.environment import state_labels, ACTION_NAMES as MOVE_NAMES\nfrom RLAgent import checkpoint\nfrom .nn_view import NetworkView\nfrom .board_view import BoardView\nfrom .chart_view import ChartView\nfrom .config_panel import ConfigPanel, ComboBox\n\nSAVE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'saves')\nSPEEDS = [('1 move/s', 1), ('5 moves/s', 5), ('15 moves/s', 15), ('30 moves/s', 30), ('60 moves/s', 60),\n          ('200 moves/s', 200), ('1000 moves/s', 1000), ('Max', 0)]\n\n\nclass Dashboard(QMainWindow):\n    def __init__(self, trainer):\n        super().__init__()\n        self.setWindowTitle('SnakeRL \u2014 Deep Q-Learning')\n        self.trainer = trainer    # the agent, its game, and the training loop\n        self.paused = False\n        self.move_credit = 0.0    # moves owed to the speed setting (see on_timer)\n        self.last_time = time.time()\n\n        self.build_window()\n\n        QApplication.instance().installEventFilter(self)   # catch Space / R / Q everywhere\n        self.timer = QTimer(self)\n        self.timer.timeout.connect(self.on_timer)\n        self.timer.start(16)                               # about 60 times a second\n        self.start_game()\n\n    # =====================================================================\n    #   The training loop\n    # =====================================================================\n    def start_game(self):\n        \"\"\"Show the game the trainer is playing now.\"\"\"\n        self.board.show_game(self.trainer.env)\n\n    def one_move(self):\n        game_over = self.trainer.step()      # choose a move, make it, remember it, learn\n        if game_over:\n            self.game_finished()\n\n    def game_finished(self):\n        \"\"\"The trainer has already recorded the game and started a new one.\"\"\"\n        self.chart.set_history(self.trainer.history)\n        self.start_game()\n\n    def on_timer(self):\n        \"\"\"Called about 60 times a second. Makes as many moves as the chosen speed asks for.\"\"\"\n        now = time.time()\n        elapsed = now - self.last_time\n        self.last_time = now\n        if self.paused:\n            return\n        speed = self.speed.currentData()\n        if speed == 0:\n            # Max: keep moving for 12 milliseconds, then let the screen redraw\n            while time.time() - now < 0.012:\n                self.one_move()\n        else:\n            self.move_credit += speed * elapsed\n            while self.move_credit >= 1:\n                self.move_credit -= 1\n                self.one_move()\n        self.refresh()\n\n    # =====================================================================\n    #   Keys\n    # =====================================================================\n    def eventFilter(self, obj, event):\n        if event.type() == QEvent.KeyPress and self.isActiveWindow():\n            if event.key() == Qt.Key_Space:\n                self.pause_or_step()\n                return True\n            if event.key() == Qt.Key_R:\n                self.resume()\n                return True\n            if event.key() == Qt.Key_Q:\n                self.close()\n                return True\n        return super().eventFilter(obj, event)\n\n    def pause_or_step(self):\n        if self.paused:\n            self.one_move()          # already paused: make one move, and learn from it\n        self.paused = True\n        self.refresh()\n\n    def resume(self):\n        self.paused = False\n        self.move_credit = 0\n        self.refresh()\n\n    # =====================================================================\n    #   Screen\n    # =====================================================================\n    def refresh(self):\n        trainer, agent, game, s = self.trainer, self.trainer.agent, self.trainer.env, self.stat\n        s['episode'].setText(str(trainer.episode))\n        s['moves'].setText(f'{agent.moves:,}')\n        s['epsilon'].setText(f'{agent.epsilon:.3f}')\n        s['memory'].setText(f'{len(agent.memory):,} / {agent.memory.capacity:,}')\n        s['train_steps'].setText(f'{agent.train_steps:,}')\n        s['target'].setText(f'{agent.target_updates:,}' if trainer.cfg.target_update else 'off')\n        if trainer.history:\n            last = trainer.history[-1]\n            s['best'].setText(f'{trainer.best_score}  (ep. {trainer.best_episode})')\n            s['last_avg'].setText(f'{last[\"avg_score\"]:.2f}')\n            s['loss'].setText(f'{last[\"loss\"]:.4f}' if last['loss'] is not None else '-')\n\n        q_values = agent.q_values(trainer.state)\n        self.board.q_values = q_values if self.paused else None    # stepping: show them on the board\n        s['score'].setText(str(game.score))\n        s['steps'].setText(str(game.steps))\n        s['return'].setText(f'{trainer.episode_return:+.2f}')\n        self.show_last_move()\n        s['next'].setText(MOVE_NAMES[int(q_values.argmax())])\n        s['outputs'].setText(' / '.join(f'{v:.2f}' for v in q_values))\n        s['previous'].setText(trainer.previous)\n        self.nn_view.show_brain(agent.brain(trainer.state), state_labels(trainer.cfg), MOVE_NAMES)\n\n        if self.paused:\n            self.state.setText('PAUSED \u2014 Space: one move, R: resume')\n            self.state.setStyleSheet('font-weight: bold; color: #e6a800;')\n        else:\n            self.state.setText('RUNNING \u2014 Space: pause, Q: quit')\n            self.state.setStyleSheet('font-weight: bold; color: #2bb24c;')\n        self.board.update()\n        self.nn_view.update()\n\n    def show_last_move(self):\n        \"\"\"The move just made, as the agent remembers it, and the Q-learning target it gives.\"\"\"\n        move, s = self.trainer.last_move, self.stat\n        if move is None:\n            return\n        how = 'random' if move['explored'] else 'best Q'\n        s['last_move'].setText(f'{MOVE_NAMES[move[\"action\"]]}  ({how})')\n        s['reward'].setText(f'{move[\"reward\"]:+g}' + (f'  ({move[\"status\"]})' if move['done'] else ''))\n        r, gamma = move['reward'], self.trainer.cfg.gamma\n        if move['done']:\n            s['q_target'].setText(f'{r:+g}  (game over)')\n        else:\n            future = self.trainer.agent.best_future_q(move['next_state'])\n            s['q_target'].setText(f'{r:+g} + {gamma:g}\u00d7{future:.2f} = {r + gamma * future:.2f}')\n\n    def build_window(self):\n        cfg = self.trainer.cfg\n        self.nn_view = NetworkView()\n        self.board = BoardView(cfg)\n        self.chart = ChartView()\n        self.chart.set_history(self.trainer.history)\n        self.panel = ConfigPanel(cfg)\n        self.panel.applied.connect(self.restart)\n\n        # tool bar\n        pause = QPushButton('Pause / Step  [Space]')\n        resume = QPushButton('Resume  [R]')\n        quit_ = QPushButton('Quit  [Q]')\n        save = QPushButton('Save')\n        load = QPushButton('Load...')\n        pause.clicked.connect(self.pause_or_step)\n        resume.clicked.connect(self.resume)\n        quit_.clicked.connect(self.close)\n        save.clicked.connect(self.save)\n        load.clicked.connect(self.load_dialog)\n        self.speed = ComboBox()\n        for label, value in SPEEDS:\n            self.speed.addItem(label, value)\n        self.speed.setCurrentIndex(3)\n        vision = QCheckBox('Vision rays')\n        vision.setChecked(True)\n        vision.toggled.connect(self.toggle_vision)\n        self.learning = QCheckBox('Learning')\n        self.learning.setToolTip('Off: no random moves and no training, just watch what it has learned')\n        self.learning.setChecked(True)\n        self.learning.toggled.connect(self.toggle_learning)\n        self.state = QLabel()\n        bar = QHBoxLayout()\n        for w in (pause, resume, quit_, self.speed, vision, self.learning, save, load):\n            w.setFocusPolicy(Qt.NoFocus)\n            bar.addWidget(w)\n        bar.addStretch(1)\n        bar.addWidget(self.state)\n\n        # statistics\n        self.stat = {}\n        left = [('episode', 'Episode'), ('moves', 'Moves'), ('epsilon', 'Epsilon (random)'),\n                ('memory', 'Replay memory'), ('train_steps', 'Training steps'), ('target', 'Target net updates'),\n                ('best', 'Best score ever'), ('last_avg', f'Avg score, last {AVERAGE_OVER}'),\n                ('loss', 'Loss, last episode')]\n        right = [('score', 'Score'), ('steps', 'Steps'), ('return', 'Total reward'), ('last_move', 'Last move'),\n                 ('reward', 'Reward'), ('q_target', 'Q target r+\u03b3\u00b7maxQ\u2032'), ('outputs', 'Q-values F / R / L'),\n                 ('next', 'Next move (best Q)'), ('previous', 'Previous game')]\n        stats = QGroupBox('Training')\n        grid = QGridLayout(stats)\n        for column, rows in ((0, left), (2, right)):\n            for row, (key, label) in enumerate(rows):\n                grid.addWidget(QLabel(f'<b>{label}:<\/b>'), row, column)\n                value = QLabel('-')\n                value.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)   # text changes don't resize panes\n                grid.addWidget(value, row, column + 1)\n                self.stat[key] = value\n        grid.setColumnStretch(1, 1)\n        grid.setColumnStretch(3, 1)\n\n        center = QWidget()\n        column = QVBoxLayout(center)\n        column.setContentsMargins(0, 0, 0, 0)\n        column.addWidget(self.board, 5)\n        column.addWidget(stats, 0)\n        column.addWidget(self.chart, 2)\n\n        panes = QSplitter(Qt.Horizontal)\n        panes.addWidget(self.nn_view)\n        panes.addWidget(center)\n        panes.addWidget(self.panel)\n        panes.setSizes([700, 560, 360])\n        panes.setChildrenCollapsible(False)\n\n        root = QWidget()\n        layout = QVBoxLayout(root)\n        layout.addLayout(bar)\n        layout.addWidget(panes, 1)\n        self.setCentralWidget(root)\n        self.resize(1680, 980)\n\n    def toggle_vision(self, on):\n        self.board.show_vision = on\n        self.board.update()\n\n    def toggle_learning(self, on):\n        self.trainer.learning = on\n        self.refresh()\n\n    # =====================================================================\n    #   Restart, save, load\n    # =====================================================================\n    def restart(self, cfg):\n        \"\"\"Apply the panel's settings. If the network shape is unchanged, the agent can be kept.\"\"\"\n        box = QMessageBox(self)\n        box.setWindowTitle('Apply settings')\n        if cfg.same_brain_as(self.trainer.cfg):\n            box.setText('Keep the agent (what it has learned and its memory) and use the new settings\\n'\n                        'from now on, or start again with a new, untrained agent?')\n            keep = box.addButton('Keep agent', QMessageBox.AcceptRole)\n        else:\n            box.setText('The network shape changed (state, layers, neurons or activation),\\n'\n                        'so what the agent learned cannot be kept. Start a new, untrained agent?')\n            keep = None\n        new = box.addButton('New agent', QMessageBox.DestructiveRole)\n        box.addButton(QMessageBox.Cancel)\n        box.exec_()\n\n        if keep is not None and box.clickedButton() == keep:\n            self.trainer.use_settings(cfg)         # same agent, new rules, a new game\n            self.start_game()\n        elif box.clickedButton() == new:\n            self.use(Trainer(cfg))\n        else:\n            return\n        cfg.save(SETTINGS_FILE)                    # headless mode uses these settings too\n        self.statusBar().showMessage(f'Settings saved to {SETTINGS_FILE}', 6000)\n        self.refresh()\n\n    def use(self, trainer):\n        trainer.learning = self.learning.isChecked()\n        self.trainer = trainer\n        self.chart.set_history(trainer.history)\n        self.start_game()\n        self.refresh()\n\n    def save(self):\n        os.makedirs(SAVE_DIR, exist_ok=True)\n        path = os.path.join(SAVE_DIR, f'checkpoint_{self.trainer.cfg.state_type}_ep{self.trainer.episode}.npz')\n        checkpoint.save(path, self.trainer)\n        self.statusBar().showMessage(f'Saved {path}', 6000)\n\n    def load_dialog(self):\n        path, _ = QFileDialog.getOpenFileName(self, 'Load checkpoint', SAVE_DIR, 'Checkpoint (*.npz)')\n        if path:\n            trainer = checkpoint.load(path, self.trainer.cfg)   # network from the file, everything else as now\n            self.panel.load_config(trainer.cfg)\n            trainer.cfg.save(SETTINGS_FILE)\n            self.use(trainer)\n\n    def closeEvent(self, event):\n        self.timer.stop()\n        event.accept()\n", "Dashboard/board_view.py": "\"\"\"The original SnakeGame board, with the snake's vision rays drawn on top.\"\"\"\nfrom PyQt5.QtCore import QPointF, QRectF, Qt\nfrom PyQt5.QtGui import QPainter, QColor, QPen, QFont\n\nimport RLAgent.environment  # noqa: F401  (makes the SnakeGame folder importable)\nfrom boards import GameBoard\n\n\nclass NoSnake:\n    body = []\n\n\nclass BoardView(GameBoard):\n    def __init__(self, cfg):\n        super().__init__(x=cfg.grid_x, y=cfg.grid_y, block_size=26)\n        self.setMinimumSize(260, 260)\n        self.snake = NoSnake()\n        self.game = None\n        self.show_vision = True\n        self.q_values = None                  # set while paused: [Q(forward), Q(right), Q(left)]\n\n    def show_game(self, game):\n        \"\"\"Point the original GameBoard at this game's snake and apple.\"\"\"\n        self.game = game\n        self.x, self.y = game.cfg.grid_x, game.cfg.grid_y\n        self.snake = game.snake\n        self.apple = game.board.apple\n        self.update()\n\n    def paintEvent(self, event):\n        if self.game is None:\n            return\n        self.apple = self.game.board.apple\n        super().paintEvent(event)            # the original game draws the board, snake and apple\n\n        painter = QPainter(self)\n        painter.setRenderHint(QPainter.Antialiasing)\n        cell, ox, oy = self.board_geometry()\n\n        def center_of(x, y):\n            return QPointF(ox + (x + 0.5) * cell, oy + (y + 0.5) * cell)\n\n        if self.show_vision and self.game.cfg.state_type == 'simple':\n            # the 'simple' state has no rays: outline the cells forward / right / left of the head\n            for letter, cell_point in zip('FRL', self.game.cells_around_head()):\n                color = QColor(255, 60, 60) if self.game.is_danger(cell_point) else QColor(0, 230, 90)\n                painter.setPen(QPen(color, 2))\n                painter.drawRect(QRectF(ox + cell_point.x * cell + 1, oy + cell_point.y * cell + 1,\n                                        cell - 2, cell - 2))\n        elif self.show_vision:\n            hx, hy = self.game.snake.head.x, self.game.snake.head.y\n            head = center_of(hx, hy)\n            for dx, dy, wall, apple, body in self.game.ray_hits:\n                painter.setPen(QPen(QColor(255, 255, 255, 60), 1))             # ray to the wall\n                painter.drawLine(head, center_of(hx + dx * (wall - 0.5), hy + dy * (wall - 0.5)))\n                if body:\n                    painter.setPen(QPen(QColor(255, 160, 0), 2))               # sees its own body\n                    painter.drawLine(head, center_of(hx + dx * body, hy + dy * body))\n                if apple:\n                    painter.setPen(QPen(QColor(0, 255, 80), 2.5))              # sees the apple\n                    painter.drawLine(head, center_of(hx + dx * apple, hy + dy * apple))\n\n        if self.q_values is not None:\n            self.draw_q_values(painter, cell, ox, oy)\n\n        font = QFont('Helvetica')\n        font.setPixelSize(max(11, int(cell * 0.7)))\n        font.setBold(True)\n        painter.setFont(font)\n        painter.setPen(QColor(255, 255, 255))\n        painter.drawText(QRectF(ox + 6, oy + 4, cell * self.x, cell), Qt.AlignLeft,\n                         f'Score {self.game.score}   Steps {self.game.steps}')\n\n    def draw_q_values(self, painter, cell, ox, oy):\n        \"\"\"Color each cell the snake can move into by its Q-value, and write the value in it.\n        Green = the best move (biggest Q), red = the worst, yellow in between.\"\"\"\n        low, high = min(self.q_values), max(self.q_values)\n        font = QFont('Helvetica')\n        font.setPixelSize(max(9, int(cell * 0.4)))\n        font.setBold(True)\n        painter.setFont(font)\n        # cells_around_head() is [forward, right, left]: the same order as the Q-values\n        for q, point in zip(self.q_values, self.game.cells_around_head()):\n            share = (q - low) / (high - low) if high > low else 1        # 0 = worst ... 1 = best\n            box = QRectF(ox + point.x * cell, oy + point.y * cell, cell, cell)\n            painter.fillRect(box, QColor.fromHsvF(share / 3, 0.9, 0.95, 0.8))   # hue: red -> yellow -> green\n            painter.setPen(QColor(0, 0, 0))\n            painter.drawText(box, Qt.AlignCenter, f'{q:.1f}')\n\n    def keyPressEvent(self, event):\n        event.ignore()                        # keys are handled by the dashboard window\n", "Dashboard/nn_view.py": "\"\"\"Draws the snake's brain.\n\nWires:   blue = positive weight, red = negative weight, thicker = stronger.\nNeurons: the brighter, the more strongly it fired for the current move.\n\"\"\"\nimport numpy as np\nfrom PyQt5.QtWidgets import QWidget\nfrom PyQt5.QtCore import Qt, QPointF, QRectF\nfrom PyQt5.QtGui import QPainter, QColor, QPen, QFont\n\nBACKGROUND = QColor(24, 26, 30)\nBLUE = (70, 140, 255)\nRED = (255, 70, 70)\nWHITE = (235, 235, 235)\nGREY = (110, 110, 110)\nGREEN = (0, 230, 60)\nCYAN = (0, 225, 255)\n\n\ndef blend(color1, color2, amount):\n    \"\"\"A color between color1 (amount 0) and color2 (amount 1).\"\"\"\n    amount = min(max(amount, 0), 1)\n    return QColor(*[int(a + (b - a) * amount) for a, b in zip(color1, color2)])\n\n\nclass NetworkView(QWidget):\n    def __init__(self):\n        super().__init__()\n        self.brain = None\n        self.input_labels = []\n        self.output_labels = []\n        self.setMinimumSize(420, 400)\n\n    def show_brain(self, brain, input_labels, output_labels):\n        self.brain = brain\n        self.input_labels = input_labels\n        self.output_labels = output_labels\n        self.update()\n\n    def neuron_positions(self):\n        \"\"\"Screen position of every neuron: one column per layer.\"\"\"\n        sizes = self.brain.layer_sizes\n        left, right, top, bottom = 70, 85, 34, 20\n        width = self.width() - left - right\n        height = self.height() - top - bottom\n        radius = max(3, min(9, height / max(sizes) * 0.36))\n        positions = []\n        for layer, count in enumerate(sizes):\n            x = left + width * layer / (len(sizes) - 1)\n            gap = min(height / count, radius * 4.2)\n            y_start = top + (height - gap * (count - 1)) / 2\n            positions.append([QPointF(x, y_start + gap * i) for i in range(count)])\n        return positions, radius\n\n    def paintEvent(self, event):\n        painter = QPainter(self)\n        painter.setRenderHint(QPainter.Antialiasing)\n        painter.fillRect(self.rect(), BACKGROUND)\n        if self.brain is None:\n            return\n        positions, radius = self.neuron_positions()\n\n        # ---- wires: one per weight -----------------------------------------\n        for layer, W in enumerate(self.brain.weights):\n            strongest = np.abs(W).max()\n            wires = []\n            for to in range(W.shape[0]):\n                for frm in range(W.shape[1]):\n                    wires.append((abs(W[to, frm]) / strongest, W[to, frm], frm, to))\n            wires.sort()                            # weak wires first, so strong ones end up on top\n            for strength, weight, frm, to in wires:\n                color = QColor(*(BLUE if weight > 0 else RED))\n                color.setAlphaF(0.1 + 0.9 * strength)\n                painter.setPen(QPen(color, 0.4 + 2.6 * strength))\n                painter.drawLine(positions[layer][frm], positions[layer + 1][to])\n\n        # ---- neurons -------------------------------------------------------------\n        last = len(positions) - 1\n        chosen = int(np.argmax(self.brain.activations[-1]))\n        for layer, column in enumerate(positions):\n            values = self.brain.activations[layer]\n            biggest = max(np.abs(values).max(), 1e-9)\n            for i, point in enumerate(column):\n                v = values[i] / biggest\n                if layer == 0:\n                    color = blend(WHITE, GREEN, v)                 # input: green when it sees something\n                elif layer == last:\n                    color = QColor(*GREEN) if i == chosen else blend(WHITE, (120, 200, 140), v)\n                else:\n                    color = blend(GREY, CYAN, v)                   # hidden: cyan when active\n                painter.setPen(QPen(QColor(20, 20, 20), 1))\n                painter.setBrush(color)\n                painter.drawEllipse(point, radius, radius)\n\n        # ---- labels --------------------------------------------------------------\n        font = QFont('Helvetica')\n        font.setPixelSize(int(max(8, min(13, radius * 1.5))))\n        painter.setFont(font)\n        painter.setPen(QColor(210, 210, 210))\n        for point, label in zip(positions[0], self.input_labels):\n            painter.drawText(QRectF(point.x() - radius - 64, point.y() - 8, 60, 16),\n                             Qt.AlignRight | Qt.AlignVCenter, label)\n        for point, label in zip(positions[-1], self.output_labels):\n            painter.drawText(QRectF(point.x() + radius + 6, point.y() - 8, 80, 16),\n                             Qt.AlignLeft | Qt.AlignVCenter, label)\n        painter.setPen(QColor(160, 160, 160))\n        for layer, column in enumerate(positions):\n            name = 'Input' if layer == 0 else 'Output' if layer == last else f'Hidden {layer}'\n            painter.drawText(QRectF(column[0].x() - 50, 6, 100, 18), Qt.AlignCenter,\n                             f'{name} ({len(column)})')\n        painter.drawText(QRectF(8, self.height() - 18, self.width() - 16, 16), Qt.AlignLeft,\n                         'wires: blue = positive, red = negative, thicker = stronger weight')\n", "Dashboard/chart_view.py": "\"\"\"Score per episode, and its average over the last 50 episodes. Red dashed lines: rollbacks.\n\nA long run has hundreds of thousands of episodes, far more than the chart has pixels. So the values\nare kept as arrays and reduced to one point per pixel column: the highest score and the mean\naverage score of the episodes in that column.\n\"\"\"\nimport numpy as np\nfrom PyQt5.QtWidgets import QWidget\nfrom PyQt5.QtCore import Qt, QPointF, QRectF\nfrom PyQt5.QtGui import QPainter, QColor, QPen, QFont, QPolygonF\n\nSERIES = [('score', QColor(0, 220, 90), 'score'),\n          ('avg_score', QColor(80, 170, 255), 'avg score')]\n\n\nclass ChartView(QWidget):\n    def __init__(self, parent=None):\n        super().__init__(parent)\n        self.history = []\n        self.setMinimumHeight(140)\n        self._reset()\n\n    def _reset(self):\n        self.cached_of = None                  # the history list the arrays below were made from\n        self.values = {key: np.zeros(0) for key, _, _ in SERIES}\n        self.rollbacks = []                    # episode indexes\n\n    def set_history(self, history):\n        self.history = history\n        self.update()\n\n    def _sync(self):\n        \"\"\"Add the episodes that were appended since the last paint (or start over for a new history).\"\"\"\n        hist = self.history\n        if hist is not self.cached_of or len(hist) < len(self.values['score']):\n            self._reset()\n            self.cached_of = hist\n        start = len(self.values['score'])\n        new = hist[start:]\n        if new:\n            for key, _, _ in SERIES:\n                self.values[key] = np.concatenate([self.values[key], [hh[key] for hh in new]])\n            self.rollbacks += [start + i for i, hh in enumerate(new) if hh.get('rollback')]\n\n    @staticmethod\n    def _per_column(values, columns, reduce):\n        \"\"\"At most one value per pixel column.\"\"\"\n        if len(values) <= columns:\n            return values\n        edges = np.linspace(0, len(values), columns + 1).astype(int)[:-1]\n        return reduce(values, edges)\n\n    def paintEvent(self, event):\n        p = QPainter(self)\n        p.setRenderHint(QPainter.Antialiasing)\n        p.fillRect(self.rect(), QColor(24, 26, 30))\n        f = QFont('Helvetica')\n        f.setPixelSize(11)\n        p.setFont(f)\n        l, r, t, b = 36, 10, 20, 20\n        w, h = self.width() - l - r, self.height() - t - b\n        p.setPen(QColor(70, 70, 70))\n        p.drawRect(QRectF(l, t, w, h))\n        x = l\n        for key, col, name in SERIES:\n            p.setPen(col)\n            p.drawText(QRectF(x, 2, 120, 16), Qt.AlignLeft, '\u2014 ' + name)\n            x += 100\n        hist = self.history\n        if len(hist) < 1:\n            return\n        self._sync()\n        n = len(self.values['score'])\n        ymax = max(1, int(self.values['score'].max()))\n        p.setPen(QColor(150, 150, 150))\n        p.drawText(QRectF(0, t - 6, l - 4, 12), Qt.AlignRight, str(ymax))\n        p.drawText(QRectF(0, t + h - 6, l - 4, 12), Qt.AlignRight, '0')\n        p.drawText(QRectF(l, t + h + 2, w, 16), Qt.AlignRight, f'episode {hist[-1][\"episode\"]}')\n        p.setPen(QPen(QColor(255, 90, 90), 1, Qt.DashLine))      # rollbacks (Trainer.check_block)\n        for i in self.rollbacks:\n            x = l + w * (i / max(1, n - 1))\n            p.drawLine(QPointF(x, t), QPointF(x, t + h))\n        columns = max(1, int(w))\n        for key, col, _ in SERIES:\n            reduce = np.maximum.reduceat if key == 'score' else \\\n                (lambda v, e: np.add.reduceat(v, e) / np.diff(np.append(e, len(v))))\n            ys = self._per_column(self.values[key], columns, reduce)\n            m = len(ys)\n            poly = QPolygonF([QPointF(l + w * (i / max(1, m - 1)), t + h - h * y / ymax)\n                              for i, y in enumerate(ys)])\n            p.setPen(QPen(col, 1.6))\n            p.drawPolyline(poly)\n", "SnakeGame/snake.py": "import random\nfrom enum import Enum\nfrom collections import namedtuple\n\nPoint = namedtuple('Point', 'x, y')\n\nclass Direction(Enum):          # clock wise sequenced enum, so keeping this order is critical\n    RIGHT = (1, 0)\n    DOWN  = (0, 1)\n    LEFT  = (-1, 0)\n    UP    = (0, -1)\n\nclass Snake:\n    # one hot encoding of [ forward, right, left ]\n    action_r    = [0, 1, 0]\n    action_l    = [0, 0, 1]\n    action_f    = [1, 0, 0]\n    action_q    = [0, 0, 0]\n\n    def __init__(self, grid_width, grid_height):\n        self.directionRing = list(Direction)\n        self.grid_width = grid_width\n        self.grid_height = grid_height\n        self.reset()\n\n    def reset(self):\n        self.score = 0\n        self.moves = 0          # count of moves\n\n        self.direction = random.choice(list(Direction))\n        self.head = Point(self.grid_width/2, self.grid_height/2)\n        #self.head = Point(random.randint(2, self.grid_width - 2), random.randint(2, self.grid_height - 2))\n        bx, by = self.direction.value[0], self.direction.value[1]\n        self.body = [self.head,\n                      Point(self.head.x - bx, self.head.y - by),\n                      Point(self.head.x - bx * 2, self.head.y - by * 2)]\n        self.apple = None\n\n    def set_apple(self, apple_pos):\n        \"\"\"Let the Snake know the apple position.\"\"\"\n        self.apple = apple_pos\n\n    def newHead(self, action):\n        # action = [ forward, right, left ]\n        idx = self.directionRing.index(self.direction)\n        if action == self.action_r:             # Right \n            self.direction = self.directionRing[(idx + 1) % 4]\n        elif action == self.action_l:           # Left\n            self.direction = self.directionRing[(idx - 1) % 4]\n\n        x = self.head.x + self.direction.value[0]\n        y = self.head.y + self.direction.value[1]\n        self.head = Point(x, y)\n\n    def moveTo(self, action):\n        \"\"\"Move snake and return status. Apple position must be provided.\"\"\"\n        self.moves += 1\n\n        self.newHead(action)\n        self.body.insert(0, self.head)\n        head = self.head\n        \n        if head.x >= self.grid_width or head.x < 0 or head.y >= self.grid_height or head.y < 0:\n            return 'wall'\n        elif head in self.body[1:]:\n            return 'body'\n        elif self.moves > 100 * len(self.body) + 200:\n            return 'starved'\n        else:\n            if self.head == self.apple:\n                self.score += 1\n                self.apple = None  # Clear apple after eating\n                self.moves = 0  # Reset move counter after eating\n                # Don't pop tail when eating apple (snake grows)\n                return 'apple'\n            else:\n                self.body.pop()\n            return 'ok'                 # moveTo succeeded\n", "SnakeGame/boards.py": "from PyQt5.QtWidgets import QWidget, QApplication\nfrom PyQt5.QtCore import QTimer, Qt, QRectF\nfrom PyQt5.QtGui import QPainter, QColor, QFont\nimport random\nfrom collections import namedtuple\n\nPoint = namedtuple('Point', 'x, y')\n\nclass Board:\n    def __init__(self, x=32, y=24):             # number of blocks on the board\n        self.x, self.y = x, y\n        self.apple = None\n\n    def generate_apple(self, snake):\n        \"\"\"Generate a new apple position avoiding occupied positions.\"\"\"\n        if snake is None or snake.body is None or len(snake.body) < 2:\n            raise Exception(\"Snake Body Exception\")\n        while True:\n            x = random.randint(0, self.x - 1)\n            y = random.randint(0, self.y - 1)\n            apple_pos = Point(x, y)\n            if apple_pos not in snake.body:     # apple and body not conflicting\n                self.apple = apple_pos\n                snake.set_apple(self.apple)\n                return\n\n    def reset(self):\n        if self.snake:\n            self.snake.reset()\n            self.generate_apple(self.snake)\n\nclass GameBoard(Board, QWidget):\n    def __init__(self, x=32, y=24, block_size=20, speed=8, background=(0, 0, 0)):\n        Board.__init__(self, x, y)\n        QWidget.__init__(self)\n        \n        self.BGROUND = QColor(*background)\n        self.bs = block_size\n        self.speed = speed\n        self.score = 0\n        \n        # Set window properties: initial size from block_size, but freely resizable.\n        # The cell size is recomputed from the window size on every paint.\n        self.setWindowTitle('Snake')\n        self.setMinimumSize(x * 4, y * 4)\n        self.resize(x * self.bs, y * self.bs)\n        \n        # Setup timer for game speed\n        self.timer = QTimer()\n        #self.timer.timeout.connect(self._on_timer)\n        self.frame_delay = 1000 // speed  # Convert to milliseconds\n        \n    def start_timer(self):\n        self.timer.start(self.frame_delay)\n        \n    def stop_timer(self):\n        self.timer.stop()\n\n    def board_geometry(self):\n        \"\"\"Return (cell, ox, oy): the current cell size and the board's top-left offset.\n\n        Cells stay square; the board is centered inside the window (letterboxed).\"\"\"\n        cell = min(self.width() / self.x, self.height() / self.y)\n        ox = (self.width() - cell * self.x) / 2\n        oy = (self.height() - cell * self.y) / 2\n        return cell, ox, oy\n\n    def paintEvent(self, event):\n        if not self.snake.body:\n            return\n            \n        painter = QPainter(self)\n        cell, ox, oy = self.board_geometry()\n        \n        # Fill the letterbox area, then the board itself\n        painter.fillRect(self.rect(), QColor(40, 40, 40))\n        painter.fillRect(QRectF(ox, oy, cell * self.x, cell * self.y), self.BGROUND)\n        \n        # Draw snake\n        BLUE1 = QColor(0, 0, 255)\n        BLUE2 = QColor(0, 100, 255)\n        \n        offSet = cell / 5\n        bSize = cell - 2 * offSet\n        \n        for pt in self.snake.body:\n            px, py = ox + pt.x * cell, oy + pt.y * cell\n            painter.fillRect(QRectF(px, py, cell, cell), BLUE1)\n            painter.fillRect(QRectF(px + offSet, py + offSet, bSize, bSize), BLUE2)\n        \n        # Draw apple\n        if self.apple:\n            RED = QColor(200, 0, 0)\n            painter.fillRect(QRectF(ox + self.apple.x * cell, oy + self.apple.y * cell, cell, cell), RED)\n\n    def resizeEvent(self, event):\n        self.update()\n        super().resizeEvent(event)\n\n    def render(self, score):\n        \"\"\"Update the display with current game state.\"\"\"\n        self.score = score\n        self.update()  # Trigger paintEvent\n        QApplication.processEvents()  # Process events to update display\n"}</script>
+<script>
+(function () {
+  var SOURCES = JSON.parse(document.getElementById('sources').textContent);
+  var ALIAS = JSON.parse(document.getElementById('aliases').textContent);
+  var lines = {};
+  Object.keys(SOURCES).forEach(function (f) { lines[f] = SOURCES[f].split('\n'); });
+
+  // Python-like (indentation, # comments) or C-like (braces, // and /* */ comments)
+  function lang(file) {
+    if (/\.(py|pyw|rb|sh|bash|zsh|yml|yaml|toml|r|jl|nim)$/i.test(file)) return 'py';
+    return 'c';
+  }
+
+  // "S#def play_game(>>SnakeAI(cfg, genome)": in that file, the first line with each text, in turn.
+  function resolve(ref) {
+    var i = ref.indexOf('#'), file = ALIAS[ref.slice(0, i)] || ref.slice(0, i);
+    var ls = lines[file];
+    if (!ls) return { file: file, line: 0 };
+    var at = -1;
+    ref.slice(i + 1).split('>>').forEach(function (text) {
+      if (at === -2) return;
+      for (var n = at + 1; n < ls.length; n++) { if (ls[n].indexOf(text) >= 0) { at = n; return; } }
+      at = -2;
+    });
+    return { file: file, line: at < 0 ? 0 : at + 1 };   // 0 = not found
+  }
+
+  // the body of the function/class starting at `line` (1-based)
+  function blockEnd(file, line) {
+    var ls = lines[file], n;
+    if (lang(file) === 'py') {                     // everything indented deeper than the def line
+      var indent = ls[line - 1].search(/\S/), end = line;
+      for (n = line; n < ls.length; n++) {
+        if (!ls[n].trim()) continue;
+        if (ls[n].search(/\S/) <= indent && !/^\s*[)\]}]/.test(ls[n])) break;
+        end = n + 1;
+      }
+      return end;
+    }
+    // up to the brace that closes the first one opened, skipping strings and comments (also across lines)
+    var depth = 0, opened = false, inside = null;  // inside: '"', "'", '`' or '*/'
+    for (n = line - 1; n < ls.length; n++) {
+      var s = ls[n];
+      for (var k = 0; k < s.length; k++) {
+        var c = s[k];
+        if (inside === '*/') { if (c === '*' && s[k + 1] === '/') { inside = null; k++; } continue; }
+        if (inside) { if (c === '\\') k++; else if (c === inside) inside = null; continue; }
+        if (c === '/' && s[k + 1] === '/') break;
+        if (c === '/' && s[k + 1] === '*') { inside = '*/'; k++; continue; }
+        if (c === '"' || c === "'" || c === '`') { inside = c; continue; }
+        if (c === '{') { depth++; opened = true; }
+        else if (c === '}') { depth--; if (opened && depth === 0) return n + 1; }
+      }
+      if (inside === '"' || inside === "'") inside = null;   // these don't span lines
+      if (!opened && n > line + 3) return line;    // no body found nearby: just the line
+    }
+    return line;
+  }
+
+  // a small highlighter: keywords, strings, comments, numbers, the name after def/class/function
+  var KW = {
+    py: /^(def|class|return|if|elif|else|for|while|in|not|and|or|is|import|from|as|try|except|finally|with|lambda|yield|pass|break|continue|raise|None|True|False|self|global|nonlocal|del|assert|async|await|match|case)$/,
+    c: /^(function|class|interface|type|enum|struct|return|if|else|for|while|do|switch|case|default|break|continue|new|delete|this|super|self|import|export|from|as|package|const|let|var|val|fun|func|fn|def|public|private|protected|static|final|abstract|override|async|await|yield|try|catch|finally|throw|throws|extends|implements|in|of|instanceof|typeof|void|null|nil|undefined|true|false|int|long|float|double|bool|boolean|string|char|go|defer|chan|select|range|map|impl|trait|pub|mut|use|mod|match|where|struct)$/
+  };
+  var DEFWORD = /^(def|class|function|func|fn|fun|interface|struct|enum|trait|type)$/;
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  var openUntil = null;              // closing token while inside a string/comment that spans lines
+  function highlight(line, L) {
+    var out = '';
+    if (openUntil) {
+      var close = line.indexOf(openUntil);
+      var cls = openUntil === '*/' ? 'sy-c' : 'sy-s';
+      if (close < 0) return '<span class="' + cls + '">' + esc(line) + '</span>';
+      out = '<span class="' + cls + '">' + esc(line.slice(0, close + openUntil.length)) + '</span>';
+      line = line.slice(close + openUntil.length); openUntil = null;
+    }
+    var re = L === 'py'
+      ? /(#.*$)|([rbfuRBFU]{0,2}(?:"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$))|[rbfuRBFU]{0,2}"(?:\\.|[^"\\])*"|[rbfuRBFU]{0,2}'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|([\s\S])/g
+      : /(\/\/.*$|\/\*[\s\S]*?(?:\*\/|$))|(`(?:\\.|[^`\\])*(?:`|$)|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)|([\s\S])/g;
+    var m, prevDef = false;
+    while ((m = re.exec(line))) {
+      if (m[1]) {
+        if (L !== 'py' && m[1].indexOf('/*') === 0 && !/\*\/$/.test(m[1])) openUntil = '*/';
+        out += '<span class="sy-c">' + esc(m[1]) + '</span>';
+      } else if (m[2]) {
+        var body = m[2].replace(/^[rbfuRBFU]+/, ''), q = body.slice(0, 3);
+        if (L === 'py' && (q === '"""' || q === "'''") && (body.length < 6 || body.slice(-3) !== q)) openUntil = q;
+        if (L !== 'py' && body[0] === '`' && (body.length < 2 || body.slice(-1) !== '`')) openUntil = '`';
+        out += '<span class="sy-s">' + esc(m[2]) + '</span>';
+      }
+      else if (m[3]) out += '<span class="sy-n">' + m[3] + '</span>';
+      else if (m[4]) {
+        if (prevDef) { out += '<span class="sy-d">' + m[4] + '</span>'; prevDef = false; }
+        else if (KW[L].test(m[4])) { out += '<span class="sy-k">' + m[4] + '</span>'; prevDef = DEFWORD.test(m[4]); }
+        else out += m[4];
+      } else out += esc(m[5]);
+    }
+    return out;
+  }
+
+  var pane = document.getElementById('srcpane'), code = document.getElementById('srccode');
+  var fileEl = document.getElementById('srcfile'), lineEl = document.getElementById('srcline');
+  var pick = document.getElementById('srcpick');
+  var shown = null, activeRow = null, activeLink = null;
+  Object.keys(SOURCES).forEach(function (f) { pick.add(new Option(f, f)); });
+
+  function render(file) {
+    if (shown === file) return;
+    openUntil = null;
+    var L = lang(file);
+    code.innerHTML = lines[file].map(function (l, n) {
+      return '<div class="ln" id="L' + (n + 1) + '"><i>' + (n + 1) + '</i><span>' + highlight(l, L) + '</span></div>';
+    }).join('');
+    shown = file;
+  }
+
+  var last = null;                   // what the panel showed last, for the tab to reopen
+  function open(file, line, isDef) {
+    if (!lines[file]) return;
+    last = { file: file, line: line, isDef: isDef };
+    render(file);
+    document.body.classList.add('pane-open');
+    fileEl.textContent = file; pick.value = file;
+    lineEl.textContent = line ? line + '번째 줄' : '';
+    code.querySelectorAll('.hl, .blk').forEach(function (el) { el.classList.remove('hl', 'blk'); });
+    if (line) {
+      var end = isDef ? blockEnd(file, line) : line;
+      for (var n = line; n <= end; n++) code.children[n - 1].classList.add(n === line ? 'hl' : 'blk');
+      var el = code.children[line - 1];
+      code.scrollTop = el.offsetTop - code.offsetTop - (isDef ? 24 : code.clientHeight / 3);
+    } else code.scrollTop = 0;
+  }
+
+  function close() {
+    document.body.classList.remove('pane-open');
+    if (activeRow) activeRow.classList.remove('active');
+    if (activeLink) activeLink.classList.remove('on');
+    activeRow = activeLink = null;
+    if (location.hash.indexOf('#src=') === 0) history.replaceState(null, '', location.pathname);
+  }
+
+  // add the links to every line
+  document.querySelectorAll('[data-at], [data-def]').forEach(function (row) {
+    var box = document.createElement('span'); box.className = 'src';
+    [['at', ''], ['def', 'def']].forEach(function (k) {
+      var ref = row.dataset[k[0]];
+      if (!ref) return;
+      var r = resolve(ref), a = document.createElement('a');
+      a.className = k[1];
+      a.textContent = r.file.split('/').pop() + (r.line ? ':' + r.line : '');
+      a.href = '#src=' + r.file + ':' + r.line + (k[1] ? ':def' : '');
+      a.title = r.file + (k[1] ? '에서 정의 열기' : '에서 이 줄 열기');
+      if (!r.line) { a.classList.add('bad'); a.title = '복사된 소스에서 찾지 못함: ' + ref; }
+      a.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();          // don't fold the block
+        if (activeRow) activeRow.classList.remove('active');
+        if (activeLink) activeLink.classList.remove('on');
+        activeRow = row; activeLink = a;
+        row.classList.add('active'); a.classList.add('on');
+        open(r.file, r.line, !!k[1]);
+        history.replaceState(null, '', a.getAttribute('href'));
+      });
+      box.appendChild(a);
+    });
+    row.appendChild(box);
+  });
+
+  // drag the panel's border to resize it; the size is remembered (when the browser allows it)
+  var grip = document.getElementById('srcgrip'), rootStyle = document.documentElement.style;
+  var narrow = window.matchMedia('(max-width: 860px)');
+  try {
+    var saved = JSON.parse(localStorage.getItem('callflow-pane') || '{}');
+    if (saved.w) rootStyle.setProperty('--pane-w', saved.w);
+    if (saved.h) rootStyle.setProperty('--pane-h', saved.h);
+  } catch (e) {}
+  function saveSize() {
+    try {
+      localStorage.setItem('callflow-pane', JSON.stringify({ w: rootStyle.getPropertyValue('--pane-w'), h: rootStyle.getPropertyValue('--pane-h') }));
+    } catch (e) {}
+  }
+  grip.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+    document.body.classList.add('resizing');
+  });
+  grip.addEventListener('pointermove', function (e) {
+    if (!document.body.classList.contains('resizing')) return;
+    if (narrow.matches) {
+      var h = Math.max(120, Math.min(window.innerHeight - 80, window.innerHeight - e.clientY));
+      rootStyle.setProperty('--pane-h', h + 'px');
+    } else {
+      var w = Math.max(280, Math.min(window.innerWidth - 240, window.innerWidth - e.clientX));
+      rootStyle.setProperty('--pane-w', w + 'px');
+    }
+  });
+  function endResize() {
+    if (!document.body.classList.contains('resizing')) return;
+    document.body.classList.remove('resizing');
+    saveSize();
+  }
+  grip.addEventListener('pointerup', endResize);
+  grip.addEventListener('pointercancel', endResize);
+  grip.addEventListener('dblclick', function () {
+    rootStyle.removeProperty(narrow.matches ? '--pane-h' : '--pane-w');
+    saveSize();
+  });
+
+  // the tab on the panel's edge: closes it, or opens it again at the last place shown
+  document.getElementById('srctab').addEventListener('click', function () {
+    if (document.body.classList.contains('pane-open')) close();
+    else if (last) open(last.file, last.line, last.isDef);
+    else open(Object.keys(SOURCES)[0], 0, false);
+  });
+  pick.addEventListener('change', function () { open(pick.value, 0, false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+  // a link like page.html#src=app/core.py:42:def opens the panel straight away
+  var m = /^#src=(.+):(\d+)(:def)?$/.exec(decodeURIComponent(location.hash));
+  if (m) open(m[1], +m[2], !!m[3]);
+
+  document.querySelectorAll('.tools button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var on = b.dataset.open === '1';
+      document.querySelectorAll('#' + b.dataset.fold + ' details').forEach(function (d) { d.open = on; });
+    });
+  });
+})();
+</script>
+</body>
+</html>
